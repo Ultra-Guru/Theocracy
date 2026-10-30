@@ -87,8 +87,8 @@
     <string name="term_phase_ready">就绪</string>
     <string name="term_phase_recovering">恢复中</string>
     <string name="term_phase_failed">失败</string>
-    <string name="term_android_shell_title">Android Shell</string>
-    <string name="term_android_shell_desc">基于 Android toybox 的 mksh —— 无需任何安装即可使用</string>
+    <string name="term_host_shell_title">终端宿主</string>
+    <string name="term_host_shell_desc">基于 Android toybox 的 mksh —— 无需任何安装即可使用</string>
     <string name="term_builtin">内置</string>
     <string name="term_deps_title">依赖（apt）</string>
     <string name="term_use_mirror">使用 TUNA 镜像</string>

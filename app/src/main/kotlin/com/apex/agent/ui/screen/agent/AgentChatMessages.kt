@@ -1,11 +1,6 @@
 package com.apex.agent.ui.screen.agent
 
 import android.widget.Toast
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -35,6 +30,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -43,7 +39,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -56,6 +51,13 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import com.apex.agent.ui.screen.agent.flow.FlowCoalescingParagraph
+import com.apex.agent.ui.screen.agent.flow.FlowCodeFenceCard
+import com.apex.agent.ui.screen.agent.flow.FlowCursor
+import com.apex.agent.ui.screen.agent.flow.FlowTempoRibbon
+import com.apex.agent.ui.screen.agent.flow.FlowTempoTracker
+import com.apex.agent.ui.screen.agent.flow.codeFenceBody
+import com.apex.agent.ui.screen.agent.flow.isCompleteCodeFence
 import com.apex.agent.ui.component.MarkdownText
 import com.apex.agent.ui.component.MessageAttachmentList
 import com.apex.agent.ui.theme.LocalShowTimestamps
@@ -458,21 +460,28 @@ internal fun StreamingResponseBubble(
     // 的 MarkdownText 渲染并接 Lightbox；此参数当前不被本气泡消费。
     onImageClick: (String) -> Unit = {}
 ) {
-    // #262 延迟读取：cursor 透明度动画保留 State，在 graphicsLayer 块内读取 ——
-    // 旧写法 `primary.copy(alpha = pulse)` 在组合期取值，700ms 循环期间整个
-    // StreamingResponseBubble（含容器层）每帧重组，drawWithCache
-    // 缓存被逐帧击穿；改为图层 alpha 后动画只失效这一个 Text 的图层。
-    val pulseState = rememberInfiniteTransition(label = "stream-cursor").animateFloat(
-        initialValue = 0.25f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(700), RepeatMode.Reverse),
-        label = "cursor-alpha"
+    // ═══ Theocracy Flow v2（2026-10 流水重做）═══
+    // 视觉体系重做：节奏感知光标 / 段落凝实 / 代码围栏即时终端化 / 流速丝带
+    // （详见 flow/FlowRender.kt 文件头设计说明）。增量渲染架构不变
+    // （StreamingParagraphSlicer 定稿块 + 活动尾段），性能纪律继承。
+    val tempoTracker = remember { FlowTempoTracker() }
+    val codeStyle = SpanStyle(
+        fontFamily = FontFamily.Monospace,
+        background = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
     )
+    val pendingMediaTail = remember(text) {
+        StreamingRenderSupport.incompleteMediaTailLength(text)
+    }
+    val shown = if (pendingMediaTail > 0) text.dropLast(pendingMediaTail) else text
+    val slicer = remember { StreamingParagraphSlicer() }
+    val slices = remember(shown) { slicer.update(shown) }
+    LaunchedEffect(shown.length) { tempoTracker.onText(shown.length) }
+    val tempo = tempoTracker.tempo
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.Start
     ) {
-        // M3 实色容器（2026-10 流式去玻璃）：与完成态 AgentBubble 同色同形 ——
+        // M3 实色容器（流式去玻璃）：与完成态 AgentBubble 同色同形 ——
         // 流式与完成瞬间切换零跳变，且不再有玻璃层的 GPU 材质成本。
         Surface(
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -499,33 +508,14 @@ internal fun StreamingResponseBubble(
                 // 节流 flush 都触发全量重解析+重排版，回复越长单次成本线性涨
                 //（整流 O(n²)）。完成/出错/中止时 VM 先 flush 落完整消息再清
                 // currentResponse（AgentChatEventApplier.kt ResponseComplete），
-                // 完成态由 AgentMessageBubble 的 MarkdownText 接管最终渲染 ——
-                // 本气泡只在流式期间存在，无需自带完成分支。
+                // 完成态由 AgentMessageBubble 的 MarkdownText 接管最终渲染。
                 // 样式对齐 MarkdownText 段落排版（bodyMedium + onSurface），
                 // 完成瞬间气泡替换不产生字号/行高跳变。
                 // ═══ 两项减轻完成瞬间跳变的流式期补偿 ═══
-                // ① 媒体语法尾部：URL 是逐字符流出的，未闭合的 `![image](http…`
-                // 原样展示既是视觉噪音（长串裸 URL）又在完成切 MarkdownImage
-                //（heightIn(min=96.dp)）时产生布局跳变 —— 尾部未闭合段截掉，
-                // 改渲染迷你占位 chip（媒体接收完成前维持稳定高度）。
+                // ① 媒体语法尾部：未闭合的 `![image](http…` 截掉 + 迷你占位 chip
+                //（媒体接收完成前维持稳定高度）。
                 // ② 行内 code/bold：闭合对按最终形态样式化（标记剥离 +
-                // 等宽/加粗），与完成态 MarkdownText 的行内样式对齐。═══
-                val codeStyle = SpanStyle(
-                    fontFamily = FontFamily.Monospace,
-                    background = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                )
-                val pendingMediaTail = remember(text) {
-                    StreamingRenderSupport.incompleteMediaTailLength(text)
-                }
-                val shown = if (pendingMediaTail > 0) text.dropLast(pendingMediaTail) else text
-                // ═══ 分段增量渲染（2026-10 流水式输出优化）═══
-                // 单 Text 全量重排是长回复后期的主要掉帧源（整流 O(n²)）：
-                // 改用 StreamingParagraphSlicer 切「定稿块 + 活动尾段」——
-                // 定稿块（配平行组，含代码围栏块整体）只排一次，后续 flush
-                // 走 Text 跳过路径；每 flush 仅活动尾段重排。视觉与单 Text
-                // 逐行等价（详见 StreamingParagraphText.kt 文件头推导）。
-                val slicer = remember { StreamingParagraphSlicer() }
-                val slices = remember(shown) { slicer.update(shown) }
+                // 等宽/加粗），与完成态 MarkdownText 的行内样式对齐。
                 // 定稿块样式缓存：块原文为 key（同块跨 flush 实例不变 →
                 // Text 参数 equals → 跳过；重复块共享）。主题切换（codeStyle
                 // 变化）→ 缓存重建全量重算，无陈旧样式残留。
@@ -533,22 +523,42 @@ internal fun StreamingResponseBubble(
                 SelectionContainer {
                     Column {
                         slices.committed.forEach { block ->
-                            Text(
-                                text = styledBlocks.getOrPut(block) {
-                                    StreamingRenderSupport.styleInline(block, codeStyle)
-                                },
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
+                            // 创新③：完整代码围栏块即时终端化（不等完成态）
+                            if (isCompleteCodeFence(block)) {
+                                FlowCoalescingParagraph(blockKey = block) {
+                                    FlowCodeFenceCard(code = codeFenceBody(block))
+                                }
+                            } else {
+                                // 创新②：段落凝实（新定稿块 0.55→1 一次性淡入）
+                                FlowCoalescingParagraph(blockKey = block) {
+                                    Text(
+                                        text = styledBlocks.getOrPut(block) {
+                                            StreamingRenderSupport.styleInline(block, codeStyle)
+                                        },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
                         }
                         // 活动尾段：每 flush 重新样式化（唯一真正变化的部分）
-                        Text(
-                            text = remember(slices.liveTail, codeStyle) {
-                                StreamingRenderSupport.styleInline(slices.liveTail, codeStyle)
-                            },
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Text(
+                                text = remember(slices.liveTail, codeStyle) {
+                                    StreamingRenderSupport.styleInline(slices.liveTail, codeStyle)
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            // 创新①：节奏感知光标（随 token 流速变高变亮；
+                            // 尾段文本行内跟随，代替旧独立行光标）
+                            FlowCursor(
+                                tempo = tempo,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(start = 1.dp, bottom = 3.dp)
+                            )
+                        }
                     }
                 }
                 if (pendingMediaTail > 0) {
@@ -576,16 +586,8 @@ internal fun StreamingResponseBubble(
                         }
                     }
                 }
-                Text(
-                    text = "▍",
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier
-                        .padding(top = 2.dp, start = 1.dp)
-                        // 延迟读取点：图层 alpha 与原 color.copy(alpha=pulse) 视觉等效
-                        //（纯色字形上两者逐像素一致）
-                        .graphicsLayer { alpha = pulseState.value }
-                )
+                // 创新④：流速丝带（回复体量直觉量度；纯布局驱动零动画成本）
+                FlowTempoRibbon(textLength = shown.length)
             }
         }
     }

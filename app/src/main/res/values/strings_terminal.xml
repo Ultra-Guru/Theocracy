@@ -87,8 +87,8 @@
     <string name="term_phase_ready">Ready</string>
     <string name="term_phase_recovering">Recovering</string>
     <string name="term_phase_failed">Failed</string>
-    <string name="term_android_shell_title">Android Shell</string>
-    <string name="term_android_shell_desc">mksh on Android toybox — works without any installation</string>
+    <string name="term_host_shell_title">Terminal Host</string>
+    <string name="term_host_shell_desc">mksh on Android toybox — works without any installation</string>
     <string name="term_builtin">Built-in</string>
     <string name="term_deps_title">Dependencies (apt)</string>
     <string name="term_use_mirror">Use TUNA mirror</string>

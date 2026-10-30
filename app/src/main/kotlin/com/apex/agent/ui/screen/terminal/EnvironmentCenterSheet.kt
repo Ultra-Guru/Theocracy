@@ -84,7 +84,7 @@ internal fun EnvironmentCenterSheet(
                     UbuntuCard(viewModel, lifecycle, progress, rootfsSize)
                 }
                 item {
-                    AndroidShellCard()
+                    TerminalHostCard()
                 }
                 item {
                     DepsCard(
@@ -253,14 +253,14 @@ private fun PhaseBadge(phase: UbuntuLifecycleCoordinator.Phase) {
     )
 }
 
-// ═══════════════ Android Shell 卡 ═══════════════
+// ═══════════════ 本地终端宿主卡（原 Android Shell —— Theocracy 更名）═══
 
 @Composable
-private fun AndroidShellCard() {
-    SectionCard(title = stringResource(R.string.term_android_shell_title)) {
+private fun TerminalHostCard() {
+    SectionCard(title = stringResource(R.string.term_host_shell_title)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                stringResource(R.string.term_android_shell_desc),
+                stringResource(R.string.term_host_shell_desc),
                 style = MaterialTheme.typography.bodySmall,
                 color = ConsoleTokens.onSurfaceVariant,
                 modifier = Modifier.weight(1f)
