@@ -6,10 +6,6 @@ import android.os.Build
 import com.apex.agent.BuildConfig
 import com.apex.agent.core.logging.AppLogger
 import com.apex.agent.core.logging.LogCategory
-import com.apex.agent.core.tools.skill.SkillRegistry
-import dagger.hilt.EntryPoint
-import dagger.hilt.InstallIn
-import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -88,30 +84,9 @@ object UpdateCenter {
         )
     }
 
-    /** 热更流水线（下载→校验→落位→技能即时注入；技能重放经 Hilt 接线）。 */
+    /** 热更流水线（下载→校验→落位）。 */
     val hotEngine: HotUpdateEngine by lazy {
-        HotUpdateEngine(downloader, hotStore, hiltSkillReapplier)
-    }
-
-    /**
-     * 技能重放出口：从 Hilt 单例图取 [SkillRegistry]（本 object 非 DI 托管，
-     * EntryPoint 是标准姿势）。失败折叠 -1 —— 引擎只留痕（下次启动
-     * SkillModule 会重放，热更内容不丢）。
-     */
-    private val hiltSkillReapplier = HotUpdateEngine.SkillReapplier { manifests ->
-        runCatching {
-            EntryPointAccessors.fromApplication(appContext, UpdateSkillsEntryPoint::class.java)
-                .skillRegistry()
-                .installBundled(manifests)
-                .getOrDefault(0)
-        }.getOrDefault(-1)
-    }
-
-    /** 热更流水线访问 SkillRegistry 的 EntryPoint（object 单例接 DI 的标准姿势）。 */
-    @EntryPoint
-    @InstallIn(SingletonComponent::class)
-    interface UpdateSkillsEntryPoint {
-        fun skillRegistry(): SkillRegistry
+        HotUpdateEngine(downloader, hotStore)
     }
 
     // ═══ 状态流（唯一真相源）════════════════════════════════════════════

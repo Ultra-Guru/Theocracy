@@ -6,7 +6,6 @@ import com.apex.agent.core.tools.AgentTool
 import com.apex.agent.core.tools.ToolCategory
 import com.apex.agent.core.tools.ToolRisk
 import com.apex.agent.core.tools.catalog.PrivilegeLadder
-import com.apex.agent.core.tools.skill.SkillDigest
 
 /**
  * Prompt construction for every [ApexAgentEngine] mode.
@@ -28,7 +27,7 @@ internal object EnginePrompts {
      * Build the system prompt shared by all modes: identity, **mandatory
      * tool-use policy**, device privilege level, mode-specific behaviour
      * rules, thinking instructions, connected services, visible tool
-     * inventory, active skill injections, session context and the
+     * inventory, session context and the
      * file-operation / output-management rulebook.
      *
      * 2026 主动执行修复：学习业界标杆实践（"you MUST actually make the tool
@@ -49,7 +48,6 @@ internal object EnginePrompts {
      * @param privilegeLevel current privilege ("ROOT" / "SHIZUKU" / anything
      *   else → normal shell guidance)
      * @param visibleTools v4 请求计划内的工具（CORE+激活/强制；与请求 tools 数组同源）
-     * @param skillPrompts active skill prompt injections (may be empty)
      * @param environmentSummary v3 live capability snapshot (null → section
      *   omitted; same source the environment gate enforces)
      * @param connectedServices 已连接外部服务摘要（GitHub/连接器等，null →
@@ -70,7 +68,6 @@ internal object EnginePrompts {
         config: AgentConfig,
         privilegeLevel: String,
         visibleTools: List<AgentTool>,
-        skillPrompts: List<String> = emptyList(),
         environmentSummary: String? = null,
         connectedServices: String? = null,
         /**
@@ -107,22 +104,6 @@ internal object EnginePrompts {
          */
         firstTurnGreeting: Boolean = false,
         /**
-         * 聊天记忆召回上下文（对话自动记忆）。非空时渲染
-         * "## Remembered About You" 段——引擎每轮 execute 入口经
-         * ExecutionMemoryObserver.recallChatMemory 取回的用户长期记忆
-         * （偏好/背景/历史结论），指引模型利用而非重复询问。
-         * null/空白 = 段落省略（未接入或无可召回内容）。
-         */
-        memoryContext: String? = null,
-        /**
-         * 技能目录（渐进披露）。非空时渲染 "## Skill Catalog" 段：全部已
-         * 安装技能的一行摘要 + SkillActivate 装载指引。此时 [skillPrompts]
-         * 应只携带已激活技能的注入（见 SkillRegistry.getActivePromptInjections）
-         * ——目录+激活双层结构，请求体积有界。空 = 省略目录段（兼容旧调用：
-         * skillPrompts 全量注入的 legacy 行为）。
-         */
-        skillCatalog: List<SkillDigest> = emptyList(),
-        /**
          * 本轮聊天信号（共情引擎数据面，[ChatSignalDetector.detect] 产出）。
          * 情绪非 NONE 时渲染 "## Emotional Attunement (THIS TURN)" 段
          * （负向：先共情后任务；正向：同频庆祝）；vague=true 时渲染
@@ -148,9 +129,9 @@ internal object EnginePrompts {
                 appendLine("You are not a chatbot: your job is to COMPLETE coding tasks by taking actions with tools —")
                 appendLine("reading and editing real files, searching code, running builds, tests and commands, git and GitHub — until done.")
             } else {
-                appendLine("You are ${config.agentName.ifBlank { "Apex Agent" }}, an AI AGENT running on an Android device.")
+                appendLine("You are ${config.agentName.ifBlank { "Theocracy" }}, an AI AGENT running on an Android device.")
                 appendLine("You are not a chatbot: your job is to COMPLETE tasks by taking actions with tools —")
-                appendLine("shell commands, file operations, web browsing/automation, messaging connectors, memory, and device control.")
+                appendLine("shell commands, file operations, web browsing/automation, messaging connectors, and device control.")
             }
 
             // ═══ Agent 角色（人设层）：名字/称呼/角色定义/提示词/风格/语言 ═══
@@ -172,7 +153,7 @@ internal object EnginePrompts {
                 appendLine("You are task-driven, but greetings and small talk are legitimate input — respond like a")
                 appendLine("natural assistant, not a capabilities brochure:")
                 appendLine("- Greetings / chitchat / mood talk (你好、在吗、无聊聊聊) → reply briefly and warmly in the")
-                appendLine("  user's language, then invite the topic. NEVER dump tool lists, skill catalogs, or")
+                appendLine("  user's language, then invite the topic. NEVER dump tool lists or")
                 appendLine("  self-introductions unless explicitly asked '你能做什么'.")
                 appendLine("- Casual questions get casual-length answers; match the user's energy and message length.")
                 appendLine("- Life / emotional / non-programming topics are FIRST-CLASS: chat, travel, cooking, health,")
@@ -206,26 +187,8 @@ internal object EnginePrompts {
             appendLine("   use shell when no dedicated tool fits. Prefer parallel tool calls for independent reads.")
             appendLine("8. Not every capability is pre-loaded: when no listed tool fits, call ToolSearch to find")
             appendLine("   the right tool in the catalog, then ToolOpen to load it — it becomes callable immediately.")
-            appendLine("   If nothing installed fits either, climb the Capability Expansion Playbook (below):")
-            appendLine("   skills / MCP servers / Linux toolchains can be searched, installed and connected on demand.")
-            appendLine()
-
-            // ═══ 记忆：学习与记住（任务后经验整理的静态策略层）═══
-            // 与只读召回工具（MemoryRecentEpisodes 等）和「Remembered About You」
-            // 注入段互补：这里规定任务终局必须主动沉淀经验 —— agent 只消费
-            // 不沉淀的话，长期记忆永远只有隐式采集的 UI 轨迹。
-            appendLine("## Memory: Learn & Remember (MANDATORY)")
-            appendLine("You have a long-term memory system. Do not start every task from zero, and do not let")
-            appendLine("experience evaporate when a task ends.")
-            appendLine("- BEFORE a non-trivial task: check memory for prior attempts (MemoryRecentEpisodes,")
-            appendLine("  MemorySearchNodes, MemoryRecallMacro) and read the \"Remembered About You\" section above.")
-            appendLine("- AFTER finishing OR failing any non-trivial task: call MemoryConsolidateExperience ONCE")
-            appendLine("  with durable lessons (UI quirks, workarounds, user preferences, verified facts, what went")
-            appendLine("  wrong and the fix) — not a narration of steps. Include entities/relations when the task")
-            appendLine("  confirmed knowledge worth reusing. Failure lessons are as valuable as success ones.")
-            appendLine("- DURING chat: save durable user facts with MemorySaveFact; grow the knowledge graph with")
-            appendLine("  MemoryGraph (create_entities / add_observations / create_relations / search).")
-            appendLine("- Never re-ask what memory already knows; trust it unless it looks outdated.")
+            appendLine("   If nothing installed fits either, call CapabilityReport() to self-check, or ask")
+            appendLine("   the user to install the missing capability.")
             appendLine()
 
             // ═══ #170 终端主动性：Terminal-Use Policy（静态策略层）═══
@@ -287,33 +250,26 @@ internal object EnginePrompts {
 
             // ═══ 能力扩展攻略（「不会自己找方法」的根因修复）═══
             // 旧提示词只列已装能力；没有现成工具时模型直接「我做不了」。
-            // 本段把「找方法」固化为有序梯度：目录检索 → 自省 → 技能市场 →
-            // MCP 服务器 → Linux 工具链 → 提权请求，声明不可能之前必须爬完。
+            // 本段把「找方法」固化为有序梯度：目录检索 → 自省 → 终端 →
+            // 提权请求，声明不可能之前必须爬完。
             // CHAT 模式零工具纯对话（EMPTY_TOOL_PLAN）——攻略指向的工具全部
             // 不可调用，注入只会与「建议切换 AGENT 模式」的引导自相矛盾。
             if (config.mode != AgentMode.CHAT) {
                 appendLine("## Capability Expansion Playbook (MANDATORY before saying I can't)")
-                appendLine("You are an extensible agent: what is not installed yet can usually be acquired.")
                 appendLine("When no loaded tool fits the task, do NOT give up — climb this ladder in order:")
                 appendLine("1. INSTALLED TOOLS — ToolSearch(query) finds any registered tool; ToolOpen(tool_name)")
                 appendLine("   loads it (callable next turn). ToolList() for a category overview.")
                 appendLine("2. LIVE SELF-CHECK — CapabilityReport() any time you are unsure what you can do:")
-                appendLine("   privilege level, environment, tool/skill/MCP inventory at a glance.")
-                appendLine("3. SKILLS (domain methodologies & tool bundles) — MarketSearch(query) browses the")
-                appendLine("   official skill hub; SkillSearch(query) also finds community skills;")
-                appendLine("   SkillInstall(url) installs; SkillActivate(skill_id) loads the methodology.")
-                appendLine("4. MCP SERVERS (external tool systems) — MarketSearch(kind=\"mcp\") lists hub servers;")
-                appendLine("   McpConnect wires any server (remote URL or local npx command); McpList shows")
-                appendLine("   what is already connected.")
-                appendLine("5. LINUX TOOLCHAIN — the PRoot Ubuntu terminal is a full Linux userland:")
-                appendLine("   TerminalBackends → if Ubuntu is missing, TerminalUbuntuEnsure first → then")
-                appendLine("   apt install / pip install / npm install / git clone anything.")
-                appendLine("6. PRIVILEGE WALL — when a route needs more privilege than your level allows (see")
+                appendLine("   privilege level, environment, and tool inventory at a glance.")
+                appendLine("3. ANDROID TERMINAL — the built-in terminal runs real shell commands on the device:")
+                appendLine("   TerminalExec for one-shot commands; TerminalCreate → TerminalRun →")
+                appendLine("   TerminalObserve/TerminalWait for sessions (cwd/env/state preserved).")
+                appendLine("4. PRIVILEGE WALL — when a route needs more privilege than your level allows (see")
                 appendLine("   Device Privilege Level above), tell the user exactly what to enable (Shizuku /")
                 appendLine("   Root) and what it unlocks, then wait for their action.")
-                appendLine("Rules: after installing or activating anything, VERIFY it took effect (SkillList /")
-                appendLine("McpList / re-run) before reporting success. Tell the user what you are acquiring")
-                appendLine("and why. Never claim a task is impossible before routes 1-5 have been tried.")
+                appendLine("Rules: after acquiring anything, VERIFY it took effect (re-run / ToolList)")
+                appendLine("before reporting success. Never claim a task is impossible before routes 1-4")
+                appendLine("have been tried.")
                 appendLine()
             }
 
@@ -347,20 +303,17 @@ internal object EnginePrompts {
                     appendLine("## Mode: CHAT")
                     appendLine("You are in pure chat mode. This is a CONVERSATION, not a task runner:")
                     appendLine("- No tools are available. Respond directly, warmly, and conversationally.")
-                    appendLine("- Lean on your persona, active role, and the injected chat skills.")
+                    appendLine("- Lean on your persona and active role.")
                     appendLine("- Keep replies natural in length: match the user's energy.")
                     appendLine("- If the user asks for something that clearly needs tools or multi-step work,")
                     appendLine("  suggest switching to the AGENT mode for this conversation.")
                 }
                 AgentMode.AGENT -> {
-                    appendLine("## Mode: AGENT (all-round, NON-coding)")
+                    appendLine("## Mode: AGENT (all-round)")
                     appendLine("You are the all-round agent for everyday life, knowledge, and device tasks.")
-                    appendLine("- Use your general tools autonomously (web search, memory, system, apps...)")
+                    appendLine("- Use your tools autonomously (web search, system, apps, terminal, browser...)")
                     appendLine("  and keep working until the request is fulfilled.")
-                    appendLine("- CODING is OUT OF SCOPE here: programming, code writing/debugging/review, git/GitHub")
-                    appendLine("  operations belong to the Coding workspace. When the user asks for those,")
-                    appendLine("  briefly say so and advise switching to the Coding mode — do NOT attempt them.")
-                    appendLine("- For everything else (Q&A, planning, automation, device control, research),")
+                    appendLine("- For everything (Q&A, planning, automation, device control, research, scripting),")
                     appendLine("  act directly with tools: a correct action beats a long explanation.")
                 }
                 AgentMode.PLAN -> {
@@ -584,52 +537,12 @@ internal object EnginePrompts {
             }
             }
 
-            // ═══ 技能目录（渐进披露）：一行摘要 + 装载指引 ═══
-            // 目录与激活分层：目录让模型知道「有哪些领域方法论」，激活集的
-            // 全文注入由 skillPrompts 携带（见 Active Skills 段）。模型用
-            // SkillActivate 装载，宿主也可经斜杠指令/自动装备预激活。
-            if (skillCatalog.isNotEmpty()) {
-                appendLine()
-                appendLine("## Skill Catalog (${skillCatalog.size} installed)")
-                appendLine("Domain expert methodologies are installed but NOT loaded by default (keeps requests small).")
-                appendLine("When the task matches a domain below, call SkillActivate(skill_id) FIRST — the full")
-                appendLine("methodology loads instantly and stays for the session. Activated skills appear under")
-                appendLine("'Active Skills'.")
-                skillCatalog.forEach { digest ->
-                    appendLine("- ${digest.id}: ${digest.name} — ${digest.summary}")
-                }
-                appendLine("Also call SkillList() for the full inventory with versions/status.")
-            }
-
-            // Skill prompt 注入（渐进披露：仅激活技能的全文；空目录 = legacy 全量）
-            if (skillPrompts.isNotEmpty()) {
-                appendLine()
-                appendLine("## Active Skills")
-                skillPrompts.forEach { prompt ->
-                    appendLine(prompt)
-                    appendLine()
-                }
-            }
-
             // 会话级动态上下文（当前时间 / 用户规则 / 结构化输出 / 联网搜索指令等），
             // 由 UI 层在每次发送前组装，任意模式下生效。
             if (config.additionalSystemContext.isNotBlank()) {
                 appendLine()
                 appendLine("## Session Context")
                 appendLine(config.additionalSystemContext.trim())
-            }
-
-            // ═══ 聊天记忆召回（对话自动记忆的注入面）═══
-            // 位置紧跟 Session Context：记忆是对「这个用户」的先验，先于
-            // 通用规则生效。内容已由实现方格式化（实体 + 观察列表），
-            // 这里只包一层段标题与使用指引。
-            if (!memoryContext.isNullOrBlank()) {
-                appendLine()
-                appendLine("## Remembered About You")
-                appendLine("Long-term memories distilled from past conversations (auto-captured, newest first):")
-                appendLine(memoryContext.trim())
-                appendLine("Use these naturally — do not re-ask what is already known; if a memory looks")
-                appendLine("outdated, confirm gently instead of silently trusting it.")
             }
 
             // ═══ 全局行为规则（#164 Rules 系统）═══

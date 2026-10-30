@@ -32,7 +32,7 @@ import kotlinx.coroutines.SupervisorJob
  *
  * - [FunctionalPluginStore]：根目录固定在 filesDir 之下的
  *   plugins/functional（[PluginContract.FUNCTIONAL_PLUGINS_DIR]）；
- *   core 层不依赖 core:logging——与 SkillRegistry 同款注入式日志桥，
+ *   core 层不依赖 core:logging——注入式日志桥，
  *   这里接到 AppLogger（LogCategory.PLUGIN）；
  * - [MacroStepExecutor] 执行器：宏步骤经 ToolExecutor 管线执行（查找
  *   建议 / schema 校验 / 错误折叠），**不带 UI 门控**——外层宏工具调用的

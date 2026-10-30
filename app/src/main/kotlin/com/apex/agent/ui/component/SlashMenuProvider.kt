@@ -2,15 +2,11 @@ package com.apex.agent.ui.component
 
 import android.util.Log
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Api
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.apex.agent.core.tools.connector.ConnectorRegistry
-import com.apex.agent.core.tools.mcp.McpManager
-import com.apex.agent.core.tools.skill.SkillMenuProvider
-import com.apex.agent.core.tools.skill.SkillRegistry
 import com.apex.agent.plugin.host.PluginManager
 import com.apex.agent.plugin.host.functional.UnifiedPluginRegistry
 import com.apex.agent.ui.language.LanguageManager
@@ -21,7 +17,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.launchIn
@@ -32,31 +27,20 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * 斜杠指令菜单的统一数据源（成品版 v2）
+ * 斜杠指令菜单的统一数据源
  *
- * 从 SkillRegistry / McpManager / PluginManager / ConnectorRegistry 实时聚合菜单数据。
+ * 从 PluginManager / ConnectorRegistry 实时聚合菜单数据。
  *
- * ## v2 修复
- * - **异步构建**：旧实现在字段初始化器里同步执行 `buildMenu()`（SkillRegistry 懒加载
- *   全目录扫盘 + McpManager 读盘 + discoverPlugins 跨进程 PackageManager 查询），
- *   而本类在首屏进入聊天页时于主线程被 Hilt 构造 → 首帧卡顿/ANR。现在初始值是
- *   空菜单，首次构建放到后台协程。
- * - **变更自动刷新**：旧实现只在插件加载/手动 refresh 时重建——市场页安装技能、
- *   开关 MCP、增删连接器后回到聊天页，菜单仍是旧快照。现在聚合各注册表的
- *   changes 流 + 插件 loadedPlugins，任一变化自动重建（300ms 去抖合并洪峰）。
+ * - **异步构建**：初始值是空菜单，首次构建放到后台协程。
+ * - **变更自动刷新**：聚合各注册表的 changes 流 + 插件 loadedPlugins，
+ *   任一变化自动重建（300ms 去抖合并洪峰）。
  * - **插件发现缓存**：discoverPlugins 是跨进程 IPC + loadLabel 资源加载，
- *   旧实现每次 buildMenu 全量执行。现在 10 秒 TTL 缓存。
- * - **MCP enabled 过滤**：禁用的 MCP 服务器不再出现在菜单（旧实现全量展示）。
- * - **连接器真数据源**：从 [ConnectorRegistry] 读取启用的连接器，替代硬编码示例。
- * - **状态结构化**：技能安装状态由 [com.apex.agent.core.tools.skill.SkillMenuItem.installed]
- *   显式携带，替代旧 `label.contains("未安装")` 字符串协议。
+ *   10 秒 TTL 缓存。
+ * - **连接器真数据源**：从 [ConnectorRegistry] 读取启用的连接器。
  */
 @OptIn(kotlinx.coroutines.FlowPreview::class)
 @Singleton
 class SlashMenuProvider @Inject constructor(
-    private val skills: SkillMenuProvider,
-    private val skillRegistry: SkillRegistry,
-    private val mcpManager: McpManager,
     private val pluginManager: PluginManager,
     // Plugin System v2：功能性插件的斜杠指令贡献（已激活插件快照）。
     private val unifiedPluginRegistry: UnifiedPluginRegistry,
@@ -78,13 +62,9 @@ class SlashMenuProvider @Inject constructor(
         // 首次构建：后台执行（旧实现在主线程构造期同步跑）
         scope.launch { rebuild() }
 
-        // 聚合各注册表的变更流：技能安装/开关、MCP 配置/连接状态、连接器增删开关。
-        // 任一变化 → 重建菜单；300ms 去抖把洪峰（如批量安装）合并为一次重建。
-        combine(
-            skillRegistry.changes,
-            mcpManager.changes,
-            connectorRegistry.changes
-        ) { _, _, _ -> Unit }
+        // 聚合连接器注册表的变更流：任一变化 → 重建菜单；
+        // 300ms 去抖把洪峰合并为一次重建。
+        connectorRegistry.changes
             .debounce(300)
             .onEach { rebuild() }
             .launchIn(scope)
@@ -106,7 +86,7 @@ class SlashMenuProvider @Inject constructor(
             .launchIn(scope)
     }
 
-    /** 在 MCP 连接状态变化后手动触发全量刷新。 */
+    /** 手动触发全量刷新。 */
     fun refresh() {
         scope.launch { rebuild() }
     }
@@ -119,77 +99,9 @@ class SlashMenuProvider @Inject constructor(
     private fun buildMenu(): SlashMenuData {
         return SlashMenuData(
             categories = listOf(
-                buildSkillsCategory(),
-                buildMcpCategory(),
                 buildPluginsCategory(),
                 buildConnectorsCategory()
             )
-        )
-    }
-
-    // ── Skills：只展示「已安装且已启用」的技能 ──
-    // Hub 生态门控（产品要求）：斜杠菜单的 skills 分组 = 市场安装 + 开启，
-    // 二者缺一不可——未安装的目录条目不出现（去市场装），装了没开的也不出现
-    // （去市场/已安装页开）。旧版还并列 5 个 legacy 内置模板（未安装也展示、
-    // 状态 NOT_INSTALLED），现在全部移除——模板安装走市场页，菜单只留真货。
-    // #197：逐项携带工位作用域（manifest.scope；缺省 all）——消费方按屏过滤。
-    // per-scope 启停：逐项携带生效工位集合（enabledScopes = manifest 声明 ∩
-    // 双工位启用）——Agent 屏与 Coding 屏的 / 菜单各归各（修「两屏同步显示」），
-    // 市场里只在 Coding 分级开启的技能不再出现在 Agent 屏菜单。
-    // 就绪门禁：必填配置未填齐的技能不进菜单（SkillMenuProvider 过滤，
-    // 配置保存后 registry 发 changes 自动重建）。
-    private fun buildSkillsCategory(): SlashMenuCategory {
-        val active = skills.getActiveSkills()
-        val scopeById = skillRegistry.getInstalled()
-            .associate { it.manifest.id to it.manifest.scope }
-        val items = active.map { skill ->
-            SlashMenuItem(
-                label = skill.label,
-                command = skill.command,
-                description = skill.description,
-                status = SlashItemStatus.READY,
-                scope = scopeById[skill.id] ?: "all",
-                enabledScopes = skill.enabledScopes
-            )
-        }
-        return SlashMenuCategory(
-            id = "skills",
-            title = "Skills",
-            icon = Icons.Default.Extension,
-            items = items,
-            badge = if (active.isNotEmpty()) "${active.size}" else null,
-            hint = if (active.isEmpty()) languageManager.getString(R.string.chat_slash_no_skills) else null
-        )
-    }
-
-    // ── MCP：只展示「已安装且正在运行（已连接）」的服务器 ──
-    // Hub 生态门控（产品要求）：本地 MCP 需要启动才能用——未安装/未启动的
-    // 不出现在斜杠菜单（去市场 MCP 页安装并启动）。禁用条目天然不连，无需
-    // 单独排除。菜单随 mcpManager.changes 自动重建（connect/disconnect 均
-    // 发射变更），启动完成后条目即时出现。
-    // #197：逐项携带工位作用域（config.scope）——Agent 屏/Coding 屏各自过滤。
-    private fun buildMcpCategory(): SlashMenuCategory {
-        val connected = mcpManager.getConnectedServers().toSet()
-        val running = mcpManager.getEnabledConfigs().filter { it.name in connected }
-        val items = running.map { cfg ->
-            SlashMenuItem(
-                label = cfg.name,
-                command = "/mcp:${cfg.name} ",
-                description = cfg.url.ifBlank { cfg.endpointSummary() },
-                status = SlashItemStatus.CONNECTED,
-                scope = cfg.scope
-            )
-        }
-        return SlashMenuCategory(
-            id = "mcp",
-            title = languageManager.getString(R.string.chat_slash_mcp_servers),
-            icon = Icons.Default.Api,
-            items = items,
-            badge = if (items.isNotEmpty()) String.format(
-                languageManager.getString(R.string.chat_slash_mcp_connected),
-                items.size
-            ) else null,
-            hint = if (items.isEmpty()) languageManager.getString(R.string.chat_slash_mcp_none_running) else null
         )
     }
 

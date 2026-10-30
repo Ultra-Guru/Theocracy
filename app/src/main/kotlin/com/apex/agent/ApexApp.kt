@@ -11,8 +11,6 @@ import com.apex.agent.net.NetworkMonitor
 import com.apex.agent.notify.ApexNotifications
 import com.apex.agent.notify.ForegroundTracker
 import com.apex.agent.platform.EnvironmentStateUpdater
-import com.apex.agent.platform.memory.work.MaintenanceScheduler
-import com.apex.memkit.core.MemKit
 import com.apex.agent.platform.privilege.PrivilegeDetector
 import com.apex.agent.platform.privilege.PrivilegeManager
 import com.apex.agent.platform.terminal.ubuntu.lifecycle.UbuntuLifecycleCoordinator
@@ -44,14 +42,6 @@ class ApexApp : Application(), Configuration.Provider, ImageLoaderFactory {
     @Inject
     lateinit var attachmentCleanupManager: AttachmentCleanupManager
 
-    // ★ 触发 Hilt 创建记忆库单例（MemKit 构造 = 加载 + 旧存储一次性迁移 + 管道启动）。
-    @Inject
-    lateinit var memKit: MemKit
-
-    // 记忆维护周期调度（WorkManager；梦境语义约束）。
-    @Inject
-    lateinit var maintenanceScheduler: MaintenanceScheduler
-
     // T82→T85: Ubuntu 产品级生命周期 —— App 启动时恢复现场（reconcile + 状态派生），
     // T85 内置交付语义：rootfs 随 APK 内置（完整 Ubuntu ~300MB+ 档），解包**纯离线**，
     // 因此启动即自动预备（无需用户同意下载 —— 没有任何下载）。首次启动约 2~5 分钟
@@ -67,11 +57,6 @@ class ApexApp : Application(), Configuration.Provider, ImageLoaderFactory {
     /** T82：apexctl 桥（guest 脚本 ↔ Android 能力，经持久化 home bind 的文件队列）。 */
     @Inject
     lateinit var guestBridgeService: com.apex.agent.platform.TerminalBridge.GuestBridgeService
-
-    // ★ #173 逆向 MCP Host：触发 @Singleton 创建 —— enabled 时 App 启动即自启
-    //（见 McpHostManager.init；未启用则零网络副作用）。
-    @Inject
-    lateinit var mcpHostManager: com.apex.agent.mcphost.McpHostManager
 
     // ═══ v1.4.4：诊断 / 通知 / 网络 —— 启动即初始化的三个单例 ═══
 
@@ -148,9 +133,6 @@ class ApexApp : Application(), Configuration.Provider, ImageLoaderFactory {
         initShizuku()
         // attachmentCleanupManager 字段已通过 Hilt @Inject 触发单例创建，
         // schedulePeriodicCleanup() 已在 AttachmentModule 的 @Provides apply block 中调用。
-
-        // 启动 CS-Mem 记忆写入管道与后台梦境整理（见报告 P0：初始化缺口）。
-        initCsMem()
 
         // T85: Ubuntu 生命周期恢复 + 内置 rootfs 自动预备（见 initUbuntuLifecycleRecovery）。
         initUbuntuLifecycleRecovery()
@@ -292,20 +274,6 @@ class ApexApp : Application(), Configuration.Provider, ImageLoaderFactory {
                             "${r?.let { it::class.simpleName } ?: "failed"}"
                     )
                 }
-        }
-    }
-
-    /**
-     * 启动记忆库后台管道（apex-kit-memory）。
-     * - MemKit：库写入管道已在 DI 构造时 start（首帧加载 + 旧存储一次性迁移）。
-     * - MaintenanceScheduler：WorkManager 周期维护（衰减/剪枝/晶化/别名发现，
-     *   约束 = 充电 + 电量不低 + 空闲 + WiFi，原 DreamRenderer 梦境语义）。
-     */
-    private fun initCsMem() {
-        runCatching {
-            maintenanceScheduler.schedule(this)
-        }.onFailure {
-            Log.w("ApexAgent", "Failed to schedule memory maintenance: ${it.message}")
         }
     }
 

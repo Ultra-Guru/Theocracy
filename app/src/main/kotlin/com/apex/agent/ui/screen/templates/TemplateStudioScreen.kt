@@ -99,20 +99,6 @@ fun TemplateStudioScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // ═══ 工位分层页签：Agent 模板 / Coding 模板 ═══
-            SecondaryTabRow(selectedTabIndex = tab.ordinal) {
-                Tab(
-                    selected = tab == TemplateScope.AGENT,
-                    onClick = { viewModel.selectTab(TemplateScope.AGENT) },
-                    text = { Text(stringResource(R.string.templates_tab_agent)) }
-                )
-                Tab(
-                    selected = tab == TemplateScope.CODING,
-                    onClick = { viewModel.selectTab(TemplateScope.CODING) },
-                    text = { Text(stringResource(R.string.templates_tab_coding)) }
-                )
-            }
-
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(
@@ -134,32 +120,6 @@ fun TemplateStudioScreen(
                             TemplateListHeader(
                                 title = stringResource(R.string.templates_agent_list_title),
                                 subtitle = stringResource(R.string.templates_agent_list_subtitle),
-                                onCreate = { viewModel.openEditor(null) }
-                            )
-                        }
-
-                        items(templates, key = { it.id }) { template ->
-                            TemplateCard(
-                                template = template,
-                                onEdit = { viewModel.openEditor(template) },
-                                onDuplicate = { viewModel.duplicateTemplate(template) },
-                                onDelete = { viewModel.deleteTemplate(template.id) }
-                            )
-                        }
-                    }
-                    TemplateScope.CODING -> {
-                        // ═══ Coding 专家角色（官方品牌图标 + 选择即激活 codeActiveRoleId）═══
-                        item(key = "coding-roles") {
-                            CodingRolesSection(
-                                agent = agentSettings,
-                                onAgent = { viewModel.updateAgentSettings { it } }
-                            )
-                        }
-
-                        item(key = "coding-templates-header") {
-                            TemplateListHeader(
-                                title = stringResource(R.string.templates_coding_list_title),
-                                subtitle = stringResource(R.string.templates_coding_list_subtitle),
                                 onCreate = { viewModel.openEditor(null) }
                             )
                         }

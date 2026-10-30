@@ -4,7 +4,7 @@ name: APK Build
 #   - workflow_dispatch: 手动触发，可选 debug / release（release 以 debug 密钥签名，产物可直接安装）
 #
 # ⚠️ v1.4.1 起 tag 发布已移交 release.yml（双仓库发布架构）：
-#   push tag v*.*.* → 构建产物经跨仓库 PAT 发布到 Android-Guru-Agent-Release。
+#   push tag v*.*.* → 构建产物经跨仓库 PAT 发布到 Theocracy-Release。
 #   本工作流仅保留手动触发，用于临时验证构建 —— 不再在开发仓库创建 Release。
 on:
   workflow_dispatch:
@@ -64,22 +64,6 @@ jobs:
           repository: Ultra-Guru/apex-kit-browser
           ref: ${{ steps.bkitpin.outputs.sha }}
           path: apex-kit-browser
-      - name: Read apex-kit-workspace pin
-        id: wkitpin
-        # 工作区浏览器库（com.apex.workspace:{core,explorer}）锁定文件
-        # gradle/workspace-kit.lock —— 缺锁回退 main（防御旧分支/分叉构建）。
-        # 本地开发：兄弟目录 ../apex-kit-workspace 存在时 settings 自动
-        # includeBuild；CI 嵌套路径同样命中兜底分支。
-        run: |
-          set -euo pipefail
-          PIN=$(head -n 1 gradle/workspace-kit.lock 2>/dev/null || true)
-          echo "sha=${PIN:-main}" >> "$GITHUB_OUTPUT"
-      - name: Checkout apex-kit-workspace (workspace-kit composite build, pinned)
-        uses: actions/checkout@v4
-        with:
-          repository: Ultra-Guru/apex-kit-workspace
-          ref: ${{ steps.wkitpin.outputs.sha }}
-          path: apex-kit-workspace
 
       - name: Verify apex-kit-browser checkout SHA
         # #352：轻量审计（纯日志、不阻塞）—— 实际检出 SHA 写入 job summary
@@ -98,69 +82,8 @@ jobs:
             echo "::warning::browser-kit 实际检出 $ACTUAL 与锁 $PIN 不一致（ref 解析异常？）"
           fi
 
-      - name: Read apex-kit-standard pin
-        id: akitpin
-        # 锁定文件 gradle/standard-kit.lock 由 sync-standard-kit 工作流自动维护：
-        # standard-kit main 有新绿提交 → 锁文件 bump → 本仓库 push → 全流水线
-        # 以新锁定版本构建。缺锁回退 main（防御旧分支/分叉构建）。
-        run: |
-          set -euo pipefail
-          PIN=$(head -n 1 gradle/standard-kit.lock 2>/dev/null || true)
-          echo "sha=${PIN:-main}" >> "$GITHUB_OUTPUT"
-      - name: Checkout apex-kit-standard (standard-loop composite build, pinned)
-        uses: actions/checkout@v4
-        with:
-          repository: Ultra-Guru/apex-kit-standard
-          ref: ${{ steps.akitpin.outputs.sha }}
-          path: apex-kit-standard
-      - name: Read apex-kit-loom pin
-        id: lkitpin
-        # 锁定文件 gradle/loom-kit.lock 由 sync-loom-kit 工作流自动维护：
-        # loom-kit main 有新绿提交 → 锁文件 bump → 本仓库 push → 全流水线
-        # 以新锁定版本构建。缺锁回退 main（防御旧分支/分叉构建）。
-        run: |
-          set -euo pipefail
-          PIN=$(head -n 1 gradle/loom-kit.lock 2>/dev/null || true)
-          echo "sha=${PIN:-main}" >> "$GITHUB_OUTPUT"
-      - name: Checkout apex-kit-loom (loom-weave composite build, pinned)
-        uses: actions/checkout@v4
-        with:
-          repository: Ultra-Guru/apex-kit-loom
-          ref: ${{ steps.lkitpin.outputs.sha }}
-          path: apex-kit-loom
 
-      - name: Read apex-kit-courier pin
-        id: ckitpin
-        # 锁定文件 gradle/courier-kit.lock 由 sync-courier-kit 工作流自动维护：
-        # courier-kit main 有新绿提交 → 锁文件 bump → 本仓库 push → 全流水线
-        # 以新锁定版本构建。缺锁回退 main（防御旧分支/分叉构建）。
-        run: |
-          set -euo pipefail
-          PIN=$(head -n 1 gradle/courier-kit.lock 2>/dev/null || true)
-          echo "sha=${PIN:-main}" >> "$GITHUB_OUTPUT"
-      - name: Checkout apex-kit-courier (courier-dispatch composite build, pinned)
-        uses: actions/checkout@v4
-        with:
-          repository: Ultra-Guru/apex-kit-courier
-          ref: ${{ steps.ckitpin.outputs.sha }}
-          path: apex-kit-courier
 
-      - name: Read apex-kit-memory pin
-        id: mkitpin
-        # 认知记忆库（com.apex.memkit:memory-core）锁定文件 gradle/memory-kit.lock
-        # 由 sync-memory-kit 工作流自动维护：memory-kit main 有新绿提交 →
-        # 锁文件 bump → 本仓库 push → 全流水线以新锁定版本构建。缺锁回退
-        # main（防御旧分支/分叉构建）。
-        run: |
-          set -euo pipefail
-          PIN=$(head -n 1 gradle/memory-kit.lock 2>/dev/null || true)
-          echo "sha=${PIN:-main}" >> "$GITHUB_OUTPUT"
-      - name: Checkout apex-kit-memory (memory-core composite build, pinned)
-        uses: actions/checkout@v4
-        with:
-          repository: Ultra-Guru/apex-kit-memory
-          ref: ${{ steps.mkitpin.outputs.sha }}
-          path: apex-kit-memory
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -347,4 +270,4 @@ jobs:
           retention-days: 30
 
       # 对外发布（Release + APK + version.json + 增量补丁）已移交 release.yml：
-      # 双仓库发布架构 —— 产物统一落在 Android-Guru-Agent-Release。
+      # 双仓库发布架构 —— 产物统一落在 Theocracy-Release。

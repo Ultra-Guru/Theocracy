@@ -6,8 +6,6 @@ import com.apex.agent.core.tools.builtin.AppScreenOpenTool
 import com.apex.agent.core.tools.builtin.ModelConfigImportTool
 import com.apex.agent.core.tools.builtin.ModelProfileUpdateTool
 import com.apex.agent.core.tools.builtin.SystemDiagnoseTool
-import com.apex.agent.core.tools.mcp.McpManager
-import com.apex.agent.core.tools.skill.SkillRegistry
 import com.apex.agent.tools.AppControlHosts
 import com.apex.agent.tools.AppNavigationBridge
 import com.apex.agent.tools.ToolAuditLogger
@@ -38,8 +36,6 @@ import com.apex.agent.ui.screen.settings.SettingsRepository
 internal fun registerAppControlTools(
     registry: ToolRegistry,
     settingsRepository: SettingsRepository,
-    mcpManager: McpManager,
-    skillRegistry: SkillRegistry,
     toolAuditLogger: ToolAuditLogger,
     navigationBridge: AppNavigationBridge
 ) {
@@ -60,6 +56,6 @@ internal fun registerAppControlTools(
 
     // 系统诊断快照（LOW 只读；MCP/Skills/审计真实状态，agent 分析问题的数据面）
     registry.register(SafeAgentTool(
-        SystemDiagnoseTool(AppControlHosts.diagnosticsHost(mcpManager, skillRegistry, toolAuditLogger))
+        SystemDiagnoseTool(AppControlHosts.diagnosticsHost(toolAuditLogger))
     ))
 }

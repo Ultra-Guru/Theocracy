@@ -20,7 +20,7 @@ import androidx.compose.ui.platform.LocalView
  * 2. 点左上角汉堡打开抽屉 —— 不收回；
  * 3. 抽屉里切换页面 —— 也不收回。
  *
- * 成因：全 app 只有 SkillChipInputField 的 showSoftInput（显式弹出），没有任何
+ * 成因：全 app 只有聊天输入框的 showSoftInput（显式弹出），没有任何
  * 主动收回路径 —— 只能靠系统返回键或 EditText 失焦的隐式行为；而
  * edge-to-edge + AndroidView EditText 的组合下焦点 View 移出组合并不必然
  * 收起 IME（用户实测就是不收）。
@@ -28,7 +28,7 @@ import androidx.compose.ui.platform.LocalView
  * 收回实现走「窗口 token + InputMethodManager.hideSoftInputFromWindow」：
  * 对窗口内任意聚焦 View（Compose TextField 或 interop EditText）一律生效，
  * 不依赖具体输入组件的引用。随后清掉窗口当前焦点 —— 光标/选择指示器随焦
- * 点消失，重新点输入框时 SkillChipInputField 的焦点监听会重新弹起 IME
+ * 点消失，重新点输入框时输入框的焦点监听会重新弹起 IME
  * （行为闭环，不会出现「键盘没了但光标还在闪」的中间态）。
  */
 class ImeDismisser internal constructor(private val rootView: View) {

@@ -124,26 +124,19 @@ internal fun rememberNavigationBackStack(): NavigationBackStack =
  * #224：route 字符串 → [DrawerDestination]（从 ApexRoot 的私有
  * DestinationSaver 收编为共享映射）。DrawerDestination 是 sealed class
  * （非 enum，无 name/entries），只能以 route 往返；未知 route 兜底
- * Agent，"skill" 老 route 兜底市场页（Skill 屏已并入市场，老用户
- * 重建时若停留在原 Skill 页不落空）。
+ * Agent。
  */
 internal fun destinationFromRoute(route: String): DrawerDestination = when (route) {
     DrawerDestination.Agent.route -> DrawerDestination.Agent
-    DrawerDestination.Code.route -> DrawerDestination.Code
     DrawerDestination.Templates.route -> DrawerDestination.Templates
     DrawerDestination.Terminal.route -> DrawerDestination.Terminal
-    // "skill" route 保留兜底：老用户重建时若停留在原 Skill 页，落到市场
-    "skill" -> DrawerDestination.Market
-    DrawerDestination.Market.route -> DrawerDestination.Market
     DrawerDestination.Browser.route -> DrawerDestination.Browser
-    DrawerDestination.Memory.route -> DrawerDestination.Memory
     DrawerDestination.Tasks.route -> DrawerDestination.Tasks
     DrawerDestination.Storage.route -> DrawerDestination.Storage
     DrawerDestination.Permissions.route -> DrawerDestination.Permissions
     DrawerDestination.Vault.route -> DrawerDestination.Vault
     DrawerDestination.Log.route -> DrawerDestination.Log
     DrawerDestination.Settings.route -> DrawerDestination.Settings
-    DrawerDestination.WorkspaceBrowser.route -> DrawerDestination.WorkspaceBrowser
     DrawerDestination.Playground.route -> DrawerDestination.Playground
     DrawerDestination.GlassLab.route -> DrawerDestination.GlassLab
     DrawerDestination.Usage.route -> DrawerDestination.Usage

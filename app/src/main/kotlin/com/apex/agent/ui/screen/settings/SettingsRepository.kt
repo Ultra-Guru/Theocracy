@@ -7,7 +7,6 @@ import androidx.security.crypto.MasterKey
 import com.apex.agent.core.engine.modes.ModePreset
 import com.apex.agent.core.engine.modes.migrateLegacyCustomInstruction
 import com.apex.agent.core.engine.modes.selectedModePreset
-import com.apex.agent.core.code.subagent.SubAgentSettings
 import com.apex.agent.core.llm.*
 import com.apex.agent.core.logging.AppLogger
 import com.apex.agent.core.logging.LogCategory
@@ -512,28 +511,6 @@ data class AgentSettings(
      */
     val forceDeepThinking: Boolean = false,
     /**
-     * v1.5 Coding 屏思考逻辑（双引擎路由）："" / "deep_dive" = 深潜
-     * （自研七档思考，v1.2 既有行为）；"standard" = 标准（业界标准 Agent
-     * 任务循环：画像/权限门/子代理/压缩）。Coding 屏右上角选择器写入，
-     * CodeViewModel init 恢复（DualLogicCodeEngine.switchLogic 运行时路由）。
-     */
-    val codeThinkingLogic: String = "",
-    /**
-     * v1.2 Coding 模式思考档位（持久化，与聊天页 thinkingLevelOverride 互不
-     * 干扰——两模式各自记忆）："" = 未设置（回退 STANDARD）；"auto" = AUTO
-     * 自适应；其余 = ThinkingLevel 枚举名小写
-     * （none/light/standard/deep/maximum/ultracode/apexcode）。
-     * Coding 页选择器写入，CodeViewModel init 恢复（updateThinkingLevel
-     * 双通道运行时生效，无需重启）。
-     */
-    val codeThinkingLevel: String = "",
-    /**
-     * #197 Coding 屏执行模式（与 Agent 屏的 defaultMode 互不干扰，两工位各自
-     * 记忆）："" / "build" = BUILD（边想边做）；"plan" = PLAN（先出完整计划，
-     * 确认后执行）。CodeViewModel init 恢复 + setMode 双通道运行时生效。
-     */
-    val codeExecutionMode: String = "",
-    /**
      * 任务最大迭代轮数：**0 = 无上限**（哨兵，工具循环设置页可切；默认 0
      * —— 存量用户经 [migrateToolLoopDefaults] 一次性翻为 0）。失控防线 =
      * 循环检测 + 用户手动停止，不再靠轮次硬顶打断长任务。
@@ -720,12 +697,6 @@ data class AgentSettings(
     // 每轮从工作区即时发现。默认空串 = 无规则，向后兼容零迁移。
     val globalRules: String = "",
 
-    // ═══ v3 子代理全面完善（预算/自定义类型可配置）═══
-    // 此前全部硬编码（3 并发/300s/15 轮/8K），零可配置。接线：ToolModule
-    // 构造 SubAgentRunner 时注入快照 provider；标准线库内派发器
-    // 同款消费。自定义类型由 CodeTask 的 custom 类型 + custom_name 按名解析。
-    val subagent: SubAgentSettings = SubAgentSettings(),
-
     // ═══ v3 GOAL 目标模式 ═══
     // goalMaxRounds：新目标的默认验收轮次上限（创建对话框预填）。
     // goalVerifierEnabled：快速模型验收开关（关闭后信任主模型自评，省 token）。
@@ -744,18 +715,8 @@ data class AgentSettings(
     val loopNotifyOnRun: Boolean = true,
     val loopCatchUpMissed: Boolean = false,
 
-    // ═══ v3 Coding 工位增强 ═══
-    // codingToolSurface：Coding 屏工具面——"full"（默认，CORE+激活全量）|
-    // "core"（仅 code_/git/github/terminal 核心编码工具，降噪聚焦）。
-    // codingReadGuard：标准线 read-before-edit 硬约束开关（默认开；关闭后
-    // 旧工作流免读直改，风险自担）。
-    // codingAutoRules：AGENTS.md/CLAUDE.md/.cursorrules 自动发现注入开关
-    // （关闭后仅全局规则生效，项目规则被忽略）。
     // mcpScopeIsolation：MCP/技能复合工具按市场分级（agent/coding）在引擎
     // 侧隔离的开关（默认开；关闭后回到 v2 的全局可见行为）。
-    val codingToolSurface: String = "full",
-    val codingReadGuard: Boolean = true,
-    val codingAutoRules: Boolean = true,
     val mcpScopeIsolation: Boolean = true,
 
     // ═══ 模型限速友好（只针对某些用户：有 RPM/TPM/日次数配额的厂商）═══

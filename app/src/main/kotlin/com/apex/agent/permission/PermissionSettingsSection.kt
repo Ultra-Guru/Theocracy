@@ -48,7 +48,7 @@ import com.apex.agent.ui.screen.settings.SectionCard
  *    每模式一行中文说明（FilterChip 选择形态对齐设置页
  *    ReasoningSection 的既有先例）；
  *  - 规则区：按序首匹配的 allow / ask / deny 规则列表——pattern 等宽
- *    字体展示，效应徽标三色（绿 / 琥珀 / 红，对齐 CodeScreen 的
+ *    字体展示，效应徽标三色（绿 / 琥珀 / 红，对齐终端工具卡的
  *    DiffOutput 色板），支持删除与对话框添加。
  *
  * 数据完全由参数驱动（模式 + 规则从 AgentSettings 流入，变更经回调
@@ -231,7 +231,7 @@ private fun RuleRow(
 }
 
 /**
- * 效应徽标：三色语义（对齐 CodeScreen DiffOutput 色板）——
+ * 效应徽标：三色语义（三色语义）——
  * ALLOW 绿、ASK 琥珀、DENY 红；浅底深字，深色主题下依然可读。
  */
 @Composable

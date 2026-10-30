@@ -14,9 +14,6 @@ import com.apex.agent.core.tools.builtin.ModelConfigImportHost
 import com.apex.agent.core.tools.builtin.ModelProfileUpdateHost
 import com.apex.agent.core.tools.builtin.SystemDiagnoseTool
 import com.apex.agent.core.tools.builtin.SystemDiagnosticsHost
-import com.apex.agent.core.tools.mcp.McpManager
-import com.apex.agent.core.tools.mcp.McpTransport
-import com.apex.agent.core.tools.skill.SkillRegistry
 import com.apex.agent.ui.screen.settings.SettingsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -41,8 +38,8 @@ import kotlinx.serialization.json.put
  * - [ModelProfileUpdateHostImpl] → [SettingsRepository]（与设置页同一落盘）；
  * - [ModelConfigImportHostImpl] → [ModelConfigImportApplier]（与设置页
  *   「导入」弹窗同一份识别与建档代码）；
- * - [SystemDiagnosticsHostImpl] → [McpManager] / [SkillRegistry] /
- *   [ToolAuditLogger]（真实运行时状态 + 审计落盘，含失败详情）。
+ * - [SystemDiagnosticsHostImpl] → [ToolAuditLogger]
+ *   （审计落盘，含失败详情）。
  */
 object AppControlHosts {
 
@@ -58,13 +55,11 @@ object AppControlHosts {
     fun configImportHost(repo: SettingsRepository): ModelConfigImportHost =
         ModelConfigImportHostImpl(repo)
 
-    /** 采集 MCP / Skills / 工具审计诊断快照。 */
+    /** 采集工具审计诊断快照。 */
     fun diagnosticsHost(
-        mcpManager: McpManager,
-        skillRegistry: SkillRegistry,
         auditLogger: ToolAuditLogger
     ): SystemDiagnosticsHost =
-        SystemDiagnosticsHostImpl(mcpManager, skillRegistry, auditLogger)
+        SystemDiagnosticsHostImpl(auditLogger)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -257,49 +252,22 @@ private class ModelConfigImportHostImpl(
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /**
- * [SystemDiagnosticsHost] 实现：聚合 MCP 配置/连接快照、Skills 安装/启用
- * 快照、工具审计（全量 trail + 失败子集），全部来自真实运行时状态 ——
- * agent 拿到的是事实而非想象。
+ * [SystemDiagnosticsHost] 实现：聚合工具审计（全量 trail + 失败子集），
+ * 来自真实运行时状态 —— agent 拿到的是事实而非想象。
  */
 private class SystemDiagnosticsHostImpl(
-    private val mcpManager: McpManager,
-    private val skillRegistry: SkillRegistry,
     private val auditLogger: ToolAuditLogger
 ) : SystemDiagnosticsHost {
 
     override suspend fun diagnose(includeToolCalls: Boolean, toolCallLimit: Int): String =
         withContext(Dispatchers.IO) {
-            // ── MCP：配置快照 + 连接集（两者都是锁内快照读，零连接副作用）──
-            val connected = mcpManager.getConnectedServers().toSet()
-            val mcpRows = mcpManager.getConfigs().map { cfg ->
-                SystemDiagnoseTool.Reports.mcpServer(
-                    name = cfg.name,
-                    transport = cfg.transport.name + if (cfg.runInSandbox) "+SANDBOX" else "",
-                    enabled = cfg.enabled,
-                    connected = cfg.name in connected,
-                    endpoint = cfg.endpointLabel()
-                )
-            }
-
-            // ── Skills：安装清单 + 双工位启用位 ──
-            val skillRows = skillRegistry.getInstalled().map { s ->
-                SystemDiagnoseTool.Reports.skill(
-                    id = s.manifest.id,
-                    name = s.manifest.name,
-                    version = s.manifest.version,
-                    enabledAgent = s.enabledAgent,
-                    enabledCoding = s.enabledCoding,
-                    toolCount = s.manifest.tools.size
-                )
-            }
-
             // ── 工具审计：trail（可选）+ 失败子集（含 command/detail 现场）──
             val trail = if (includeToolCalls) {
                 auditLogger.recentEntries(toolCallLimit).map { it.toReport() }
             } else emptyList()
             val failures = auditLogger.recentFailures(toolCallLimit).map { it.toReport() }
 
-            SystemDiagnoseTool.Reports.assemble(mcpRows, skillRows, trail, failures).toString()
+            SystemDiagnoseTool.Reports.assemble(emptyList(), emptyList(), trail, failures).toString()
         }
 
     private fun ToolAuditLogger.AuditEntry.toReport() =
@@ -314,10 +282,4 @@ private class SystemDiagnosticsHostImpl(
             detail = detail
         )
 
-    private fun com.apex.agent.core.tools.mcp.McpServerConfig.endpointLabel(): String =
-        when (transport) {
-            McpTransport.HTTP, McpTransport.SSE -> url.ifBlank { "(no url)" }
-            McpTransport.STDIO -> (command ?: "(no command)") + args.joinToString(" ", " ")
-            McpTransport.BUILTIN -> "builtin"
-        }
 }

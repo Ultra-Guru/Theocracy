@@ -358,12 +358,10 @@ private fun SettingsPageRouter(
             AgentHooksSectionBlock(viewModel)
         }
         "agent/presets" -> SettingsLeafColumn { ModePresetEditorSection(agent, onAgent) }
-        "agent/subagent" -> SettingsLeafColumn { SubAgentSettingsSection(agent, onAgent) }
         "agent/goal-loop" -> SettingsLeafColumn {
             GoalSettingsSection(agent, onAgent)
             LoopSettingsSection(agent, onAgent)
         }
-        "agent/coding" -> SettingsLeafColumn { CodingSettingsSection(agent, onAgent) }
         "agent/github" -> SettingsLeafColumn { GithubSettingsSection(viewModel) }
         "agent/compression" -> SettingsLeafColumn { CompressionSection(agent, onAgent) }
         "agent/vision" -> SettingsLeafColumn {

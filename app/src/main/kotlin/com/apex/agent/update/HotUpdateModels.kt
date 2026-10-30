@@ -148,7 +148,7 @@ object HotUpdatePolicy {
      *    - `target > appliedTarget` —— 全新热更包；或
      *    - `target == appliedTarget` 且包 SHA-256 不同 —— **应急修订**
      *      （发布仓库 hotfix 工作流同版本重发热更包，见
-     *      Android-Guru-Agent-Release/HOT_UPDATE.md：数据层出了坏内容，
+     *      Theocracy-Release/HOT_UPDATE.md：数据层出了坏内容，
      *      无需 APK 发版即可重发快照，客户端按指纹识别重新应用）；
      *    - `target < appliedTarget` —— 陈旧档，永不回推；
      * 3. `effectiveVersionCode >= hot.baseVersionCode` —— 数据层基底兼容

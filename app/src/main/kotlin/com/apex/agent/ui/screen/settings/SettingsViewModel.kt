@@ -290,7 +290,7 @@ class SettingsViewModel @Inject constructor(
     // ═══ Issue #164：项目规则状态（默认工作区 AGENTS.md）═══
 
     /**
-     * 默认编码工作区根（与 CodeModule 的 workspaceRoots 同源路径）。
+     * 默认工作区根（linux/workspaces/default）。
      * 设置页只展示默认工作区——活动工作区随 Code 屏切换，设置页不追踪。
      */
     private val defaultWorkspaceRoot: File

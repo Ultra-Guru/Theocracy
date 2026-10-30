@@ -71,7 +71,7 @@ import dagger.hilt.android.EntryPointAccessors
 import androidx.annotation.StringRes
 import com.apex.agent.R
 import com.apex.agent.core.engine.AgentMode
-import com.apex.agent.ui.component.SkillChipInputField
+import com.apex.agent.ui.component.CommandChipInputField
 import com.apex.agent.ui.component.AttachButton
 import com.apex.agent.ui.component.AttachmentPreviewBar
 import com.apex.agent.ui.component.FeedbackSeverity
@@ -172,7 +172,7 @@ fun AgentChatScreen(
     // ═══ #197 模型 API 未配置浮窗（发送时拦截并提示去配置）═══
     var showApiMissingNotice by remember { mutableStateOf(false) }
 
-    // ═══ FusionBundle 王冠入口已迁至 Coding 屏（用户钦定位：FUSION 工具
+    // ═══（历史注记
     // 聚合体系属于 Coding 工位，Agent 屏保留纯聊天体验 —— #197 迁移先例
     // 同口径；激活态横幅/暖启由 FusionCodingEntry 承载）═══
 
@@ -666,7 +666,7 @@ fun AgentChatScreen(
 
                 // ═══ 玻璃输入栏（/ 斜杠 + GitHub + 旋转加号 + 输入框 + 发送）═══
                 // GlassStyle.Floating：悬浮主面 —— 比卡片更强的 blur/边缘/高光；
-                // v5：输入框换 SkillChipInputField（技能 chip 内联），IME 行为
+                // 输入框（指令 chip 内联），IME 行为
                 // 兜底（焦点/按下显式 show + requestApplyInsets）随组件移植。
                 GlassCard(
                     backdrop = listBackdrop,
@@ -687,11 +687,8 @@ fun AgentChatScreen(
                     onRemove = { index -> viewModel.removeAttachment(index) }
                 )
 
-                // ═══ v5：技能 chip 已内联进输入框（SkillChipInputField），独立的
+                // ═══ 指令 chip 已内联进输入框，独立的
                 // 胶囊行移除 —— 不再出现「胶囊行叠在输入框上方」的重叠观感。
-                // #197 「小圆环」函数调用/工具菜单已迁至 Coding 屏（Agent 屏
-                // 保留纯聊天体验：斜杠技能/MCP 选择 + 附件 + 模型小大脑）。
-                // FUSION 王冠入口亦同口径迁至 Coding 屏（FusionCodingEntry）。
 
                 // ═══ 工具栏行：功能按钮 + 原生思考档位同一行（统一横向滚动）═══
                 Row(
@@ -779,12 +776,12 @@ fun AgentChatScreen(
                     val inputText = inputTextState.value
                     // IME 发送键在任务执行中的反馈文案（onSend 非组合上下文，预解析）
                     val sendBusyNotice = stringResource(R.string.chat_send_busy)
-                    // ═══ v5 技能 chip 输入框（EditText + ReplacementSpan）═══
-                    // 选中的 Skill/MCP/连接器/插件以行内 chip 追加到文字后面，
+                    // ═══ 指令 chip 输入框（EditText + ReplacementSpan）═══
+                    // 选中的连接器/插件以行内 chip 追加到文字后面，
                     // 多选去重、退格/点击删除；发送时纯文本与 chip 集合分离上报。
                     //（斜杠实时联想仍锚定在本 Box：菜单锚定在文本框下方）
                     Box(modifier = Modifier.weight(1f)) {
-                        SkillChipInputField(
+                        CommandChipInputField(
                             value = inputText,
                             onValueChange = { viewModel.updateInputText(it) },
                             chips = pendingCommands,
@@ -796,13 +793,13 @@ fun AgentChatScreen(
                                 // （避免撞 NoOpLlmClient 静默空转，用户无从知晓）。
                                 if (!llmConfigured) {
                                     showApiMissingNotice = true
-                                    return@SkillChipInputField
+                                    return@CommandChipInputField
                                 }
                                 // S2：LOOP 模式首条消息 → 转循环配置 Sheet（预填草稿），
                                 // 不直接发送；返回 false（非首条/斜杠指令）则照常发送。
                                 if (viewModel.maybeInterceptLoopFirstSend(inputText.trim())) {
                                     showLoopSetup = true
-                                    return@SkillChipInputField
+                                    return@CommandChipInputField
                                 }
                                 // P2-9（6-c）：附件-only 消息同样可发（仅计可用附件；二轮审计 A-1 口径对齐）
                                 // chip-only（输入框空文本）同样可发：VM 走斜杠管线

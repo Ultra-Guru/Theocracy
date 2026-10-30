@@ -200,7 +200,7 @@ fun GithubIconButton(
  * 4. #229：全部文案 stringResource 化，随系统语言取词（原硬编码中文）。
  *    错误提示经资源 id 存态（onClick/协程非 composable），展示层解析。
  *
- * `internal` 以便 CodeScreen（/mcp:github 未连接信号）与市场页 GitHub 账号
+ * `internal` 以便输入栏与设置页 GitHub 账号
  * 分区复用同一份输入 UI —— 避免多处维护；3 个调用点签名保持一致。
  */
 @Composable

@@ -140,28 +140,7 @@ class HotContentStore(
 
     // ═══ overlay 读取（数据层消费方入口）══════════════════════════════
 
-    /**
-     * 生效中的技能清单原始 JSON 列表 —— 喂给
-     * `SkillRegistry.installBundled`（版本化幂等升级，保持用户启停态）。
-     *
-     * 防御式 IO：单文件损坏跳过并留痕，不向上抛（仓库纪律）。
-     */
-    fun activeSkillManifests(): List<String> {
-        ensureRetired()
-        val dir = File(activeDir, "skills")
-        val files = dir.listFiles()?.filter { it.isFile && it.name.endsWith(".json") }
-            ?.sortedBy { it.name } ?: return emptyList()
-        return files.mapNotNull { file ->
-            runCatching { file.readText() }
-                .onFailure {
-                    AppLogger.instance.warn(
-                        LogCategory.SYSTEM, "HotContentStore",
-                        "热更技能清单读取失败（跳过）：${file.name} — ${it.message}"
-                    )
-                }
-                .getOrNull()
-        }
-    }
+
 
     /**
      * 生效中的技能 id 集 —— SkillModule 的 pruneStaleBundled 白名单合并项

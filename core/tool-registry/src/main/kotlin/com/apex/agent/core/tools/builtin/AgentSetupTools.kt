@@ -45,9 +45,6 @@ data class AgentSettingsSnapshot(
     val thinkLevel: String = "standard",
     val thinkingLevelOverride: String = "",
     val forceDeepThinking: Boolean = false,
-    val codeThinkingLogic: String = "",
-    val codeThinkingLevel: String = "",
-    val codeExecutionMode: String = "",
     val maxIterations: Int = 20,
     val keepAlive: Boolean = true,
     val autoRetry: Boolean = true,
@@ -106,9 +103,6 @@ data class AgentSettingsPatch(
     val thinkLevel: String? = null,
     val thinkingLevelOverride: String? = null,
     val forceDeepThinking: Boolean? = null,
-    val codeThinkingLogic: String? = null,
-    val codeThinkingLevel: String? = null,
-    val codeExecutionMode: String? = null,
     val maxIterations: Int? = null,
     val keepAlive: Boolean? = null,
     val autoRetry: Boolean? = null,
@@ -136,8 +130,7 @@ data class AgentSettingsPatch(
     /** 是否所有字段都为 null（无操作）。 */
     fun isEmpty(): Boolean = defaultMode == null && thinkLevel == null &&
         thinkingLevelOverride == null && forceDeepThinking == null &&
-        codeThinkingLogic == null && codeThinkingLevel == null &&
-        codeExecutionMode == null && maxIterations == null && keepAlive == null &&
+        maxIterations == null && keepAlive == null &&
         autoRetry == null && maxRetryPerAction == null && loopDetection == null &&
         loopDetectionWindow == null && sameActionThreshold == null &&
         autoRecovery == null && parallelToolExecution == null &&
@@ -155,9 +148,6 @@ data class AgentSettingsPatch(
         if (thinkLevel != null) n++
         if (thinkingLevelOverride != null) n++
         if (forceDeepThinking != null) n++
-        if (codeThinkingLogic != null) n++
-        if (codeThinkingLevel != null) n++
-        if (codeExecutionMode != null) n++
         if (maxIterations != null) n++
         if (keepAlive != null) n++
         if (autoRetry != null) n++
@@ -406,9 +396,6 @@ class AgentSettingSetTool(
         thinkLevel = args.optionalString("think_level"),
         thinkingLevelOverride = args.optionalString("thinking_level_override"),
         forceDeepThinking = args.optionalBoolean("force_deep_thinking"),
-        codeThinkingLogic = args.optionalString("code_thinking_logic"),
-        codeThinkingLevel = args.optionalString("code_thinking_level"),
-        codeExecutionMode = args.optionalString("code_execution_mode"),
         maxIterations = args.optionalInt("max_iterations"),
         keepAlive = args.optionalBoolean("keep_alive"),
         autoRetry = args.optionalBoolean("auto_retry"),
@@ -451,21 +438,6 @@ class AgentSettingSetTool(
             p.thinkingLevelOverride?.let { v ->
                 if (v.isNotBlank() && v != "auto" && v !in THINKING_LEVEL_OVERRIDE_VALUES) {
                     violations.add("thinking_level_override='$v' must be \"\", \"auto\", or one of ${THINKING_LEVEL_OVERRIDE_VALUES.joinToString("/")}")
-                }
-            }
-            p.codeThinkingLogic?.let { v ->
-                if (v.isNotBlank() && v !in CODE_THINKING_LOGIC_VALUES) {
-                    violations.add("code_thinking_logic='$v' must be \"\", \"deep_dive\", or \"standard\"")
-                }
-            }
-            p.codeThinkingLevel?.let { v ->
-                if (v.isNotBlank() && v != "auto" && v !in CODE_THINKING_LEVEL_VALUES) {
-                    violations.add("code_thinking_level='$v' must be \"\", \"auto\", or one of ${CODE_THINKING_LEVEL_VALUES.joinToString("/")}")
-                }
-            }
-            p.codeExecutionMode?.let { v ->
-                if (v.isNotBlank() && v !in CODE_EXECUTION_MODE_VALUES) {
-                    violations.add("code_execution_mode='$v' must be \"\", \"build\", or \"plan\"")
                 }
             }
             p.maxIterations?.let { v ->
@@ -521,11 +493,6 @@ class AgentSettingSetTool(
         val THINKING_LEVEL_OVERRIDE_VALUES = setOf(
             "none", "light", "standard", "deep", "maximum"
         )
-        val CODE_THINKING_LOGIC_VALUES = setOf("deep_dive", "standard")
-        val CODE_THINKING_LEVEL_VALUES = setOf(
-            "none", "light", "standard", "deep", "maximum", "ultracode", "apexcode"
-        )
-        val CODE_EXECUTION_MODE_VALUES = setOf("build", "plan")
         val THEME_MODE_VALUES = setOf("system", "dark", "light")
         val LANGUAGE_VALUES = setOf("system", "zh", "en")
         val SEND_KEY_BEHAVIOR_VALUES = setOf("send", "newline")

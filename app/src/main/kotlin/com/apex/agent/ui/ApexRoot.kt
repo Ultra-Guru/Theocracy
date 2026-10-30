@@ -24,7 +24,6 @@ import androidx.compose.material.icons.filled.AddComment
 import androidx.compose.material.icons.filled.BlurOn
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Checklist
-import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DataUsage
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Language
@@ -39,7 +38,6 @@ import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.filled.Terminal
-import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material.icons.automirrored.filled.ListAlt
@@ -84,15 +82,12 @@ import com.apex.agent.ui.screen.about.AboutScreen
 import com.apex.agent.ui.screen.browser.BrowserScreen
 import com.apex.agent.ui.screen.agent.AgentChatScreen
 import com.apex.agent.ui.screen.agent.AgentChatViewModel
-import com.apex.agent.ui.screen.code.CodeScreen
 import com.apex.agent.ui.screen.diagnostics.DiagnosticsScreen
 import com.apex.agent.ui.screen.glass.GlassLabScreen
 import com.apex.agent.ui.screen.log.LogViewerScreen
-import com.apex.agent.ui.screen.market.MarketScreen
 import com.apex.agent.ui.screen.permissions.PermissionsScreen
 import com.apex.agent.ui.screen.playground.PlaygroundScreen
 import com.apex.agent.ui.screen.settings.SettingsScreen
-import com.apex.agent.ui.screen.memory.MemoryScreen
 import com.apex.agent.ui.screen.storage.StorageScreen
 import com.apex.agent.ui.screen.tasks.TaskHistoryScreen
 import com.apex.agent.ui.screen.terminal.TerminalScreen
@@ -101,7 +96,6 @@ import com.apex.agent.ui.screen.usage.UsageDashboardScreen
 import com.apex.agent.ui.screen.vault.VaultScreen
 import com.apex.agent.update.UpdateCenter
 import com.apex.agent.service.StartupWatchdog
-import com.apex.agent.ui.screen.code.WorkspaceBrowserHost
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
@@ -118,21 +112,14 @@ sealed class DrawerDestination(
     val icon: ImageVector
 ) {
     data object Agent : DrawerDestination("agent", R.string.drawer_agent, Icons.Default.SmartToy)
-    // Coding 模式（与 Agent 模式同级别）：独立引擎实例 + 工作区 + code_* 工具集，
-    // 与 Agent 模式共享 ToolRegistry/Skills/MCP/插件 —— 能力互用。
-    data object Code : DrawerDestination("code", R.string.drawer_code, Icons.Default.Code)
     // #197 模板工坊：Agent/Coding 双层模板 + Agent 角色详细设置的独立页面入口。
     data object Templates : DrawerDestination("templates", R.string.drawer_templates, Icons.AutoMirrored.Filled.ListAlt)
     data object Terminal : DrawerDestination("terminal", R.string.drawer_terminal, Icons.Default.Terminal)
     // T96 终端大重构：M³ 入口与旧交互终端入口已合并为本 Terminal —— 唯一终端
     //（M3 控制台视觉 × 真实 PTY 执行 × 多会话/环境/历史全量功能）。
-    // Skill 屏已移除 —— 技能的安装/启停统一由「市场 · Skills」页承担，
-    // 抽屉里再放一个只读列表是重复入口（两者数据源同一份 SkillRegistry）。
-    data object Market : DrawerDestination("market", R.string.drawer_market, Icons.Default.Storefront)
     // 浏览器大功能（v1.5.0 内置化）：会话状态/标签/最近动作驾驶舱 + 人工接管入口。
     // Language 图标即地球，与浏览器语义天然契合。
     data object Browser : DrawerDestination("browser", R.string.drawer_browser, Icons.Default.Language)
-    data object Memory : DrawerDestination("memory", R.string.drawer_memory, Icons.Default.Storage)
     // 任务历史（T76 审计 §7：TaskRuntime.loadTaskHistory 首次接线 —— 步骤回放/统计）
     data object Tasks : DrawerDestination("tasks", R.string.drawer_tasks, Icons.Default.Checklist)
     // 存储与数据管理（附件/rootfs 占用/会话历史导出清空 —— 均为真实数据源）
@@ -151,9 +138,6 @@ sealed class DrawerDestination(
     data object Usage : DrawerDestination("usage", R.string.drawer_usage, Icons.Default.DataUsage)
     // v1.4.4 #7：诊断中心 —— 应用/设备信息 + 崩溃记录 + 日志文件 + 一键诊断包
     data object Diagnostics : DrawerDestination("diagnostics", R.string.drawer_diagnostics, Icons.Default.BugReport)
-    // v1.6 Coding 工作区浏览器（apex-kit-workspace）：Coding 屏右上角文件图标
-    // 压栈进入；不进抽屉列表 —— 编码场景专属页（文件夹/Git/变更和产物 + 实时跟随）。
-    data object WorkspaceBrowser : DrawerDestination("workspace-browser", R.string.drawer_workspace_browser, Icons.Outlined.FolderOpen)
     // 关于页 —— 固定在抽屉最下方的独立入口（v1.4.3：从设置页「关于」区升级为一级页面；
     // 图标用 Outlined 与 Log 页的 Filled.Info 区分）
     data object About : DrawerDestination("about", R.string.drawer_about, Icons.Outlined.Info)
@@ -322,9 +306,7 @@ fun ApexRoot() {
             topBar = {
                 // 终端屏自带二级顶栏（含终端抽屉入口）——若此处再渲染根顶栏，会出现双顶栏双汉堡
                 // 工作区浏览器页自带头部（胶囊标签栏 + 叉号），与终端页同款排除
-                if (currentDestination != DrawerDestination.Terminal &&
-                    currentDestination != DrawerDestination.WorkspaceBrowser
-                ) {
+                if (currentDestination != DrawerDestination.Terminal) {
                     TopAppBar(
                     title = {
                         Row(
@@ -414,28 +396,13 @@ fun ApexRoot() {
                                 // 不再被强制拽回 Agent
                                 onOpenSettings = { navStack.push(DrawerDestination.Settings) }
                             )
-                            DrawerDestination.Code -> CodeScreen(
-                                viewModel = hiltViewModel(),
-                                // 「小大脑」菜单 → 配置模型：跳设置页（压栈语义，
-                                // 改完返回 Coding 上下文 —— 与 Agent 屏同款）
-                                onOpenSettings = { navStack.push(DrawerDestination.Settings) },
-                                // v1.6 工作区浏览器：右上角文件图标压栈进入
-                                onOpenWorkspaceBrowser = { navStack.push(DrawerDestination.WorkspaceBrowser) }
-                            )
-                            DrawerDestination.WorkspaceBrowser -> WorkspaceBrowserHost(
-                                viewModel = hiltViewModel(),
-                                // 页内叉号 = 统一返回链（弹栈回 Coding，栈空兜底 Agent）
-                                onClose = navigateBack
-                            )
                             DrawerDestination.Templates -> TemplateStudioScreen()
                             DrawerDestination.Terminal -> TerminalScreen(
                                 // 终端页不再有汉堡/边缘滑动拉抽屉 —— 返回钮走统一
                                 // 返回链（弹历史栈；栈空兑底回 Agent 主页，抽屉在那里可达）
                                 onBack = navigateBack
                             )
-                            DrawerDestination.Market -> MarketScreen()
                             DrawerDestination.Browser -> BrowserScreen()
-                            DrawerDestination.Memory -> MemoryScreen()
                             DrawerDestination.Tasks -> TaskHistoryScreen()
                             DrawerDestination.Storage -> StorageScreen()
                             DrawerDestination.Permissions -> PermissionsScreen()

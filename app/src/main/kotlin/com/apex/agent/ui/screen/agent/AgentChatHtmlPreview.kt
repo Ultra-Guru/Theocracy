@@ -1,7 +1,5 @@
 package com.apex.agent.ui.screen.agent
 
-import android.content.Context
-import com.apex.agent.core.codetools.CodeWorkspaceRoots
 import java.io.File
 
 /**
@@ -12,8 +10,7 @@ import java.io.File
  * `vm.resolveHtmlPreviewPath(...)` 解析不变，VM 行数预算回归。
  */
 internal fun AgentChatViewModel.resolveHtmlPreviewPath(rawPath: String): String? {
-    val root = workspaceRoots.activeRoot()
-        ?: File(context.filesDir, "linux/workspaces/default")
+    val root = File(context.filesDir, "linux/workspaces/default")
     val candidate: File = when {
         rawPath.startsWith("/workspace/", ignoreCase = true) ->
             File(root, rawPath.removePrefix("/workspace/"))

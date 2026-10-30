@@ -130,10 +130,10 @@ import kotlin.math.sin
  */
 
 /** 项目仓库地址 —— 关于页所有外链的基地址。 */
-private const val REPO_URL = "https://github.com/Ultra-Guru/Android-Guru-Agent"
+private const val REPO_URL = "https://github.com/Ultra-Guru/Theocracy"
 
 /** 发布仓库（双仓库发布架构的产物存放处）。 */
-private const val RELEASE_URL = "https://github.com/Ultra-Guru/Android-Guru-Agent-Release/releases"
+private const val RELEASE_URL = "https://github.com/Ultra-Guru/Theocracy-Release/releases"
 
 /** 官方后端（Guru API）同域官网 —— 相关链接区的第一位。 */
 private const val WEBSITE_URL = GURU_API_BASE_URL

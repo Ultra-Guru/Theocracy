@@ -171,15 +171,11 @@ fun ApexDrawerContent(
                     // ═══ 玻璃导航项 —— 每项独立玻璃材质，Normal 极轻 ═══
                     val destinations = listOf(
                         DrawerDestination.Agent,
-                        // Coding 模式：与 Agent 平级的独立工作流页，导航紧随其后
-                        DrawerDestination.Code,
-                        // #197 模板工坊：Agent/Coding 双层模板 + Agent 角色详细设置
+                        // #197 模板工坊：Agent 模板 + Agent 角色详细设置
                         DrawerDestination.Templates,
                         DrawerDestination.Terminal,
-                        DrawerDestination.Market,
-                        // 浏览器大功能（v1.5.0 内置化）：市场后的高频工作流入口
+                        // 浏览器大功能（v1.5.0 内置化）：高频工作流入口
                         DrawerDestination.Browser,
-                        DrawerDestination.Memory,
                         DrawerDestination.Tasks,
                         // v1.4.4 #6：用量仪表盘（数据洞察，与任务历史相邻）
                         DrawerDestination.Usage,

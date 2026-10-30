@@ -25,7 +25,7 @@ import java.time.format.DateTimeFormatter
  *  - **编程式（进程内）**：[register] 注入任意 [ToolHook]（不持久化，
  *    进程结束即消失），用于测试与宿主侧高级定制。
  *
- * 持久化惯例对齐 [com.apex.agent.core.tools.mcp.McpManager] 的
+ * 持久化惯例：原子写 + 防御式 IO 的
  * mcp_servers.json：kotlinx.serialization 真序列化（天然转义）+ 临时文件
  * 原子重命名 + 损坏备份 `.corrupt` 后重建 + 内置条目幂等合并（用户改过
  * enabled 的保留用户值，同名用户自建条目绝不劫持）。

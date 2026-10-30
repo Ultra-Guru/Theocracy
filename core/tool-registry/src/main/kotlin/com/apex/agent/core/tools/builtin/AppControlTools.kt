@@ -411,10 +411,6 @@ class SystemDiagnoseTool(
     description = """
         Collect a REAL runtime diagnostic snapshot of this app and return it
         as structured JSON — use this to analyze problems instead of guessing:
-          - mcp: configured MCP servers with transport / enabled / connected
-            state (a tool that "does not work" often means its MCP server is
-            disconnected or disabled)
-          - skills: installed skills with enable state per workspace
           - toolCalls: recent tool-call audit trail (tool, decision, tier,
             durationMs, success) — the terminal/命令执行历史
           - failures: recent FAILED tool calls with command + detail + exit
@@ -434,7 +430,7 @@ class SystemDiagnoseTool(
     override fun buildMetadata(): ToolMetadata = ToolMetadata.meta(id) {
         category(ToolCategory.SYSTEM)
         risk(ToolRisk.LOW)
-        tag("system", "diagnostics", "mcp", "skills", "audit")
+        tag("system", "diagnostics", "audit")
         annotations(ToolAnnotations.readOnly())
     }
 
@@ -523,8 +519,6 @@ class SystemDiagnoseTool(
             toolCalls: List<JsonObject>,
             failures: List<JsonObject>
         ) = buildJsonObject {
-            put("mcp", buildJsonArray { mcp.forEach { add(it) } })
-            put("skills", buildJsonArray { skills.forEach { add(it) } })
             put("toolCalls", buildJsonArray { toolCalls.forEach { add(it) } })
             put("failures", buildJsonArray { failures.forEach { add(it) } })
         }

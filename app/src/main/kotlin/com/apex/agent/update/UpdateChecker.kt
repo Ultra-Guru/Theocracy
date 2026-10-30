@@ -21,7 +21,7 @@ import kotlin.coroutines.resume
 /**
  * 应用内更新检查 —— 双仓库发布架构的客户端侧。
  *
- * 发布仓库（Android-Guru-Agent-Release）main 分支上的 `version.json` 由开发仓库
+ * 发布仓库（Theocracy-Release）main 分支上的 `version.json` 由开发仓库
  * CI 在每次 tag 发布时自动提交；本类拉取该清单并与本地 versionCode 比对。
  *
  * 设计约束：
@@ -205,7 +205,7 @@ class UpdateChecker(
 
 /** 发布仓库 main 分支上版本清单的固定地址（由开发仓库 CI 自动维护）。 */
 const val UPDATE_MANIFEST_URL =
-    "https://raw.githubusercontent.com/Ultra-Guru/Android-Guru-Agent-Release/main/version.json"
+    "https://raw.githubusercontent.com/Ultra-Guru/Theocracy-Release/main/version.json"
 
 /** 发布仓库 main 分支上补丁全量索引的固定地址（跨版本链式增量）。 */
 const val PATCH_INDEX_URL = PatchIndex.PATCH_INDEX_URL

@@ -41,120 +41,13 @@ import com.apex.agent.tools.ToolAuditLogger
  * - 失败行整体可点击（errorContainer 低透明度底色），由调用方弹出详情。
  */
 
-/** MCP 服务器展示行（名称 / 传输形态 / 端点 / 启用 / 连接）。 */
-data class McpServerRow(
-    val name: String,
-    val transport: String,
-    val endpoint: String,
-    val enabled: Boolean,
-    val connected: Boolean
-)
 
-/** 技能展示行（id / 名称 / 版本 / 双工位启用位 / 工具数）。 */
-data class SkillRow(
-    val id: String,
-    val name: String,
-    val version: String,
-    val enabledAgent: Boolean,
-    val enabledCoding: Boolean,
-    val toolCount: Int
-)
 
-/**
- * MCP 服务器行：名称 + 传输形态徽标 + 连接状态点（绿 = 已连接 / 灰 = 未连接）+
- * 端点（url 或命令行，等宽小字）+ 禁用态整行降透明度。
- */
-@Composable
-internal fun McpServerListRow(row: McpServerRow) {
-    Surface(
-        shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            // 连接状态点：主色/表面变色，与文案互补（色盲可读）
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(
-                        if (row.connected) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.outlineVariant
-                    )
-            )
-            Spacer(Modifier.width(10.dp))
-            Column(modifier = Modifier.weight(1f).padding(vertical = 6.dp)) {
-                Text(
-                    row.name,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    color = if (row.enabled) MaterialTheme.colorScheme.onSurface
-                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                )
-                Text(
-                    buildString {
-                        append(row.transport)
-                        append("  ·  ")
-                        append(if (row.connected) stringResource(R.string.diag_mcp_connected)
-                        else stringResource(R.string.diag_mcp_disconnected))
-                        if (!row.enabled) append("  ·  ").append(stringResource(R.string.diag_mcp_disabled))
-                        append('\n').append(row.endpoint)
-                    },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-    }
-}
 
-/**
- * 技能行：名称 + 版本 + 双工位启用徽标（Agent/Coding 各一枚，禁用工位划暗）+ 工具数。
- */
-@Composable
-internal fun SkillListRow(row: SkillRow) {
-    Surface(
-        shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Outlined.Extension, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(10.dp))
-            Column(modifier = Modifier.weight(1f).padding(vertical = 6.dp)) {
-                Text(
-                    "${row.name}  v${row.version}",
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    buildString {
-                        append(
-                            if (row.enabledAgent) stringResource(R.string.diag_skill_scope_agent) + " ✓"
-                            else stringResource(R.string.diag_skill_scope_agent) + " ✕"
-                        )
-                        append("  ·  ")
-                        append(
-                            if (row.enabledCoding) stringResource(R.string.diag_skill_scope_coding) + " ✓"
-                            else stringResource(R.string.diag_skill_scope_coding) + " ✕"
-                        )
-                        append("  ·  ")
-                        append(stringResource(R.string.diag_skill_tools_unit, row.toolCount))
-                    },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-    }
-}
+
+
+
+
 
 /**
  * 工具审计行：时间 + 工具名（等宽）+ 决策徽标 + 耗时；失败行错误色强调且可点击

@@ -3,7 +3,6 @@ package com.apex.agent.update
 import android.os.StatFs
 import com.apex.agent.core.logging.AppLogger
 import com.apex.agent.core.logging.LogCategory
-import com.apex.agent.core.tools.skill.SafeZipExtractor
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -34,7 +33,7 @@ import java.security.MessageDigest
  *   → `hotmanifest.json` 解析（schema 校验）→ **逐文件 SHA-256 复核**
  *   （第二道防线：外层指纹对账后内容再被篡改的极端场景）；
  * 5. **落位生效**：[HotContentStore.applyPackage] 原子换位 → 技能经
- *   [SkillReapplier] 立即注入注册表（版本化幂等升级，保持用户启停态；
+
  *   SkillHotReloader 令新工具即时可用）→ 上报 [State.Applied]。
  *
  * 失败折叠为 [State.Failed]（[FailKind] 供 UI 本地化），不向上抛；
@@ -42,19 +41,8 @@ import java.security.MessageDigest
  */
 class HotUpdateEngine(
     private val downloader: UpdateDownloader,
-    private val store: HotContentStore,
-    private val skillReapplier: SkillReapplier
+    private val store: HotContentStore
 ) {
-
-    /**
-     * 技能重放出口 —— 引擎不持有 DI 图；由 [UpdateCenter] 以 Hilt EntryPoint
-     * 接线（installBundled → notifyChanged → SkillHotReloader 即时生效）。
-     * 返回成功安装/升级条数；-1 = 注册表暂不可用（仅留痕，下次启动
-     * SkillModule 会重放，热更内容不丢）。
-     */
-    fun interface SkillReapplier {
-        fun reapply(manifestJsons: List<String>): Int
-    }
 
     /** 失败类别 —— UI 据此出本地化文案。 */
     enum class FailKind { SPACE, DOWNLOAD, VERIFY, UNPACK, APPLY }
@@ -71,7 +59,7 @@ class HotUpdateEngine(
         data class Applied(
             val targetVersionName: String,
             val entries: Int,
-            val skillsApplied: Int
+            val skillsApplied: Int = 0
         ) : State
 
         /** 任一环节失败。 */
@@ -212,23 +200,16 @@ class HotUpdateEngine(
             }
             staging = null // 已换名为 active，不再按暂存清理
             runCatching { localFile.delete() }
-            val skillsApplied = skillReapplier.reapply(store.activeSkillManifests())
-            if (skillsApplied < 0) {
-                AppLogger.instance.warn(
-                    LogCategory.SYSTEM, "HotUpdateEngine",
-                    "技能注册表暂不可用 —— 热更内容已落位，下次启动由 SkillModule 重放"
-                )
-            }
             AppLogger.instance.info(
                 LogCategory.SYSTEM, "HotUpdateEngine",
                 "热更新生效：v${packageManifest.targetVersionName}" +
-                    "(${packageManifest.targetVersionCode}) · ${packageManifest.entries.size} 文件 · 技能注入 $skillsApplied"
+                    "(${packageManifest.targetVersionCode}) · ${packageManifest.entries.size} 文件"
             )
             listener.onStateChanged(
                 State.Applied(
                     packageManifest.targetVersionName,
                     packageManifest.entries.size,
-                    skillsApplied
+                    0
                 )
             )
         } catch (e: Exception) {

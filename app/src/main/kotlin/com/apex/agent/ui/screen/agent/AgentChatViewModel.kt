@@ -14,11 +14,7 @@ import com.apex.agent.core.llm.ModelProfile
 import com.apex.agent.core.llm.ProviderConfig
 import com.apex.agent.core.llm.ReasoningEffort
 import com.apex.agent.core.engine.modes.ModePreset
-import com.apex.agent.core.codetools.CodeWorkspaceRoots
 import com.apex.agent.core.tools.ToolRegistry
-import com.apex.agent.core.tools.skill.SkillActivationStore
-import com.apex.agent.core.tools.skill.SkillAutoActivator
-import com.apex.agent.core.tools.skill.SkillRegistry
 import com.apex.agent.github.GithubTokenManager
 import com.apex.agent.loop.LoopScheduler
 import com.apex.agent.net.NetworkMonitor
@@ -53,7 +49,6 @@ import javax.inject.Inject
 class AgentChatViewModel @Inject constructor(
     internal val agentEngine: AgentEngine,
     private val memory: ConversationMemory,
-    private val memKit: com.apex.memkit.core.MemKit,
     val githubTokenManager: GithubTokenManager,
     private val savedStateHandle: SavedStateHandle,
     private val preprocessor: PredictiveAttachmentPreprocessor,
@@ -71,22 +66,13 @@ class AgentChatViewModel @Inject constructor(
     internal val taskController: AgentTaskStatusController,
     // 历史对话仓库（归档/恢复/删除；逻辑主体在 AgentChatHistoryController.kt）
     internal val chatHistory: ChatHistoryManager,
-    // 工作区根解析（HTML 预览路径用）：code_* 工具写的 HTML 按此根解析相对路径；
-    // default 工作区即 Agent 沙箱根（终端会话 guest /workspace 同源）。
-    // internal —— AgentChatHtmlPreview.kt 扩展共用（God-file 预算拆分）。
-    internal val workspaceRoots: CodeWorkspaceRoots,
     // i18n：用户可见 toast / 系统行 / 工具步骤文案按当前语言取词（组合外场景）
     private val languageManager: LanguageManager,
-    // v2：斜杠路由需要 MCP 连接快照（/mcp:<id> 引导提示词据此生成）
-    internal val mcpManager: com.apex.agent.core.tools.mcp.McpManager,
     // Plugin System v2：斜杠路由需要功能性插件指令贡献快照
     // （/plugin:<id> 命中时注入插件声明的定制 prompt）。
     internal val unifiedPluginRegistry: com.apex.agent.plugin.host.functional.UnifiedPluginRegistry,
     // P2：删除/清空历史会话时同步清理附件文件（AgentChatHistoryController 扩展使用）
     internal val attachmentCleanup: AttachmentCleanupManager,
-    // 技能渐进披露：自动装备（消息命中 tags 零成本预激活）+ 斜杠装备写入。
-    private val skillAutoActivator: SkillAutoActivator,
-    internal val skillActivation: SkillActivationStore,
     // ═══ v1.4.4 新增（全部 internal —— 扩展文件共用）═══
     /** #6 用量账本：每轮 LLM 真实 usage 落盘（EventApplier UsageUpdated 钩子）。 */
     internal val usageLedger: UsageLedger,
@@ -393,19 +379,6 @@ class AgentChatViewModel @Inject constructor(
     fun dismissNotifPermissionHint() {
         _uiState.update { it.copy(notifPermissionHint = false) }
     }
-
-    /**
-     * One-shot signal emitted when a slash command needs the user to complete
-     * the GitHub connection flow before it can execute (currently only
-     * `/mcp:github` when no token is saved). The Agent chat screen collects
-     * this and opens the GitHub token dialog.
-     *
-     * Uses [MutableSharedFlow] (not StateFlow) because this is an event, not
-     * a persistent state — repeated `/mcp:github` attempts while still
-     * unconnected should re-open the dialog each time.
-     */
-    internal val _requestGithubConnect = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    val requestGithubConnect: SharedFlow<Unit> = _requestGithubConnect.asSharedFlow()
 
     /** 一次性 UI 反馈（Toast 级）：异步动作真实结果由 Screen 收集展示。UX-1：internal（非 private）供 AgentMessageActions.kt 同包扩展访问。 */
     internal val _uiFeedback = MutableSharedFlow<String>(extraBufferCapacity = 4)
@@ -793,12 +766,6 @@ class AgentChatViewModel @Inject constructor(
         text: String,
         currentAttachments: List<Attachment>
     ) {
-        // 技能自动装备（渐进披露零成本路）：消息命中已安装技能的 tags/id/name
-        // → 发送前预激活（≤ 2 个），本轮提示词即携带方法论全文；异常静默不阻断发送。
-        // per-scope：Agent 屏传 agent 工位 —— 只在 Coding 市场开启的技能不会被
-        // Agent 屏消息误装备（双工位隔离）。
-        runCatching { skillAutoActivator.autoEquip(text, SkillRegistry.SCOPE_AGENT) }
-
         // 异步落盘附件（IO 线程）
         // 优先使用预拷贝结果，未预拷贝的回退到同步拷贝
         val persistedAttachments = try {

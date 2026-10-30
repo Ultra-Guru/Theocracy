@@ -80,7 +80,7 @@ import kotlinx.coroutines.withContext
 
 /** 「前往下载」的兜底出口：本版 Release 页缺失时去发布页列表。 */
 private const val RELEASES_FALLBACK_URL =
-    "https://github.com/Ultra-Guru/Android-Guru-Agent-Release/releases"
+    "https://github.com/Ultra-Guru/Theocracy-Release/releases"
 
 /** 弹窗模式 —— 按钮组与关闭语义由此驱动。 */
 private enum class ChangelogDialogMode {

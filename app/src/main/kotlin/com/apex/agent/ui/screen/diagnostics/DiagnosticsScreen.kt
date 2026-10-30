@@ -73,9 +73,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.apex.agent.R
-import com.apex.agent.core.tools.mcp.McpManager
-import com.apex.agent.core.tools.mcp.McpTransport
-import com.apex.agent.core.tools.skill.SkillRegistry
 import com.apex.agent.diagnostics.DiagRow
 import com.apex.agent.diagnostics.DiagnosticsCollector
 import com.apex.agent.diagnostics.LogFileSink
@@ -124,11 +121,8 @@ data class DiagnosticsUiState(
     val reportFile: File? = null,
     /** 报告生成失败信号（spec UiState 之外的补充字段：失败也需要一次性反馈，见 worklog）。 */
     val reportFailed: Boolean = false,
-    // ═══ 诊断增强（用户诉求：工具 / mcp / skills / 终端调用日志 / 失败详细记录）═══
+    // ═══ 诊断增强（用户诉求：工具 / 终端调用日志 / 失败详细记录）═══
     /** MCP 服务器快照（配置 + 连接状态）。 */
-    val mcpServers: List<McpServerRow> = emptyList(),
-    /** 已安装技能快照（双工位启用位）。 */
-    val skills: List<SkillRow> = emptyList(),
     /** 最近工具/终端调用审计（tool-audit.jsonl）。 */
     val toolCalls: List<ToolAuditLogger.AuditEntry> = emptyList(),
     /** 失败子集（success=false / 拒绝类决策，含命令与详情现场）。 */
@@ -142,8 +136,6 @@ class DiagnosticsViewModel @Inject constructor(
     // i18n：#228 查看器失败态文案（非 Compose 场景，LanguageManager 按当前语言取词）
     private val lang: LanguageManager,
     // ═══ 诊断增强数据源（真实运行时状态，非静态文案）═══
-    private val mcpManager: McpManager,
-    private val skillRegistry: SkillRegistry,
     private val auditLogger: ToolAuditLogger
 ) : ViewModel() {
 
@@ -158,32 +150,7 @@ class DiagnosticsViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             val snapshot = withContext(Dispatchers.Default) {
-                // ── 诊断增强：MCP / Skills / 工具审计（全部锁内快照读，零连接副作用）──
-                val connected = mcpManager.getConnectedServers().toSet()
-                val mcpRows = mcpManager.getConfigs().map { cfg ->
-                    McpServerRow(
-                        name = cfg.name,
-                        transport = cfg.transport.name + if (cfg.runInSandbox) "+SANDBOX" else "",
-                        endpoint = when (cfg.transport) {
-                            McpTransport.HTTP, McpTransport.SSE -> cfg.url.ifBlank { "-" }
-                            McpTransport.STDIO ->
-                                (cfg.command ?: "-") + cfg.args.joinToString(" ", " ")
-                            McpTransport.BUILTIN -> "builtin"
-                        },
-                        enabled = cfg.enabled,
-                        connected = cfg.name in connected
-                    )
-                }
-                val skillRows = skillRegistry.getInstalled().map { s ->
-                    SkillRow(
-                        id = s.manifest.id,
-                        name = s.manifest.name,
-                        version = s.manifest.version,
-                        enabledAgent = s.enabledAgent,
-                        enabledCoding = s.enabledCoding,
-                        toolCount = s.manifest.tools.size
-                    )
-                }
+                // ── 诊断增强：工具审计（锁内快照读，零副作用）──
                 val toolCallRows = auditLogger.recentEntries(TOOL_CALL_ROWS)
                 val failureRows = auditLogger.recentFailures(TOOL_CALL_ROWS)
                 DiagnosticsUiState(
@@ -192,8 +159,6 @@ class DiagnosticsViewModel @Inject constructor(
                     crashes = collector.crashFiles(),
                     logFiles = logSink.logFiles(),
                     logBytes = logSink.totalBytes(),
-                    mcpServers = mcpRows,
-                    skills = skillRows,
                     toolCalls = toolCallRows,
                     failures = failureRows
                 )
@@ -436,72 +401,6 @@ fun DiagnosticsScreen(viewModel: DiagnosticsViewModel = hiltViewModel()) {
                                 val timeLabel = remember(file) { viewModel.formatCrashTime(file) }
                                 CrashFileRow(file = file, timeLabel = timeLabel, onOpen = { viewer = ViewerTarget(file, isCrash = true) })
                             }
-                        }
-                    }
-                }
-            }
-
-            // ── MCP 服务器（诊断增强：配置/连接快照，用户诉求「便于我寻找问题」）──
-            item {
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(14.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Icon(Icons.Outlined.Hub, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                            Text(
-                                stringResource(R.string.diag_mcp_section),
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.weight(1f)
-                            )
-                            if (state.mcpServers.isNotEmpty()) {
-                                Text(
-                                    stringResource(
-                                        R.string.diag_mcp_count,
-                                        state.mcpServers.size,
-                                        state.mcpServers.count { it.connected }
-                                    ),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        if (state.mcpServers.isEmpty()) {
-                            Spacer(Modifier.height(6.dp))
-                            Text(stringResource(R.string.diag_mcp_empty), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        } else {
-                            Spacer(Modifier.height(4.dp))
-                            state.mcpServers.forEach { row -> McpServerListRow(row) }
-                        }
-                    }
-                }
-            }
-
-            // ── Skills（诊断增强：安装/双工位启用快照）──
-            item {
-                GlassCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(14.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Icon(Icons.Outlined.Extension, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                            Text(
-                                stringResource(R.string.diag_skill_section),
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.weight(1f)
-                            )
-                            if (state.skills.isNotEmpty()) {
-                                Text(
-                                    stringResource(R.string.diag_skill_count, state.skills.size),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        if (state.skills.isEmpty()) {
-                            Spacer(Modifier.height(6.dp))
-                            Text(stringResource(R.string.diag_skill_empty), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        } else {
-                            Spacer(Modifier.height(4.dp))
-                            state.skills.forEach { row -> SkillListRow(row) }
                         }
                     }
                 }

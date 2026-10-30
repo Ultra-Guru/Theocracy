@@ -4,7 +4,6 @@ import com.apex.agent.core.llm.ToolDefinition
 import com.apex.agent.core.tools.AgentTool
 import com.apex.agent.core.tools.ToolEnvironmentState
 import com.apex.agent.core.tools.ToolRegistry
-import com.apex.agent.core.tools.marketplace.HubSource
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -12,13 +11,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Capability Introspection 元工具单测（CapabilityReport / MarketSearch）。
+ * Capability Introspection 元工具单测（CapabilityReport）。
  *
  * 覆盖：
  * - CapabilityReport：权限（与 PrivilegeLadder 同源）/ 环境快照（与执行侧
  *   环境门同源）/ 工具核心-目录二分（legacy 剔除）/ 技能-MCP 计数注入与
  *   未知省略 / 扩展梯度完整；
- * - MarketSearch：双目录打分检索、安装指令完整可执行（SkillInstall 带
  *   raw URL / McpConnect 带 url 或 command+args+沙箱）、kind 过滤、
  *   limit、无命中与市场不可达的可操作错误。
  */
@@ -46,33 +44,10 @@ class CapabilityToolsTest {
             map.values.map { ToolDefinition(it.id, it.description, it.parametersSchema) }
     }
 
-    private fun hubSkill(
-        id: String,
-        name: String,
-        description: String,
-        file: String,
-        tags: List<String> = emptyList()
-    ) = HubSource.HubSkillEntry(
-        id = id, name = name, description = description, tags = tags, file = file
-    )
-
-    private fun hubMcp(
-        name: String,
-        description: String,
-        transport: String = "STDIO",
-        url: String = "",
-        command: String? = null,
-        args: List<String> = emptyList(),
-        runInSandbox: Boolean = false
-    ) = HubSource.HubMcpEntry(
-        name = name, description = description, transport = transport,
-        url = url, command = command, args = args, runInSandbox = runInSandbox
-    )
-
     // ── CapabilityReport ─────────────────────────────────────
 
     @Test
-    fun `report covers privilege environment tools skills mcp and ladder`() = runBlocking {
+    fun `report covers privilege environment tools and ladder`() = runBlocking {
         val registry = FakeRegistry(
             listOf(
                 FakeTool("Read"),          // CORE
@@ -87,10 +62,7 @@ class CapabilityToolsTest {
         val tool = CapabilityReportTool(
             registry = registry,
             environmentState = env,
-            privilegeLevel = { "SHIZUKU" },
-            installedSkillCount = { 13 },
-            configuredMcpCount = { 3 },
-            connectedMcpCount = { 2 }
+            privilegeLevel = { "SHIZUKU" }
         )
 
         val out = tool.execute("{}")
@@ -105,29 +77,9 @@ class CapabilityToolsTest {
         assertTrue(out.contains("ubuntu_ready=off"))
         // 工具段：legacy 剔除 → 2 注册（1 默认加载 + 1 目录）
         assertTrue(out.contains("Tools: 2 registered — 1 loaded by default, 1 more"))
-        // 技能与 MCP 计数
-        assertTrue(out.contains("Skills: 13 installed"))
-        assertTrue(out.contains("MCP servers: 3 configured, 2 connected"))
         // 扩展梯度完整
         assertTrue(out.contains("ToolSearch(query)"))
-        assertTrue(out.contains("MarketSearch(kind=\"mcp\")"))
-        assertTrue(out.contains("TerminalUbuntuEnsure"))
         assertTrue(out.contains("Never claim a task is impossible"))
-    }
-
-    @Test
-    fun `report omits unknown skill and mcp counts`() = runBlocking {
-        val tool = CapabilityReportTool(
-            registry = FakeRegistry(emptyList()),
-            environmentState = ToolEnvironmentState()
-            // 计数 lambda 全部走默认 -1（未知）
-        )
-        val out = tool.execute("{}")
-        assertFalse(out.contains("Skills:"))
-        assertFalse(out.contains("MCP servers:"))
-        // 工具段与环境段仍在（0 注册是事实，不省略）
-        assertTrue(out.contains("Tools: 0 registered"))
-        assertTrue(out.contains("Environment:"))
     }
 
     @Test
@@ -141,166 +93,5 @@ class CapabilityToolsTest {
         assertTrue(out.contains("Privilege: ROOT"))
         // ROOT 无 CANNOT 行
         assertFalse(out.contains("- CANNOT:"))
-    }
-
-    // ── MarketSearch：技能 ───────────────────────────────────
-
-    @Test
-    fun `market search skill hit carries executable install url`() = runBlocking {
-        val tool = MarketSearchTool(
-            fetchSkills = {
-                Result.success(
-                    listOf(
-                        hubSkill(
-                            "youtube-dl", "YouTube 下载",
-                            "Download YouTube videos to /sdcard",
-                            "skills/youtube-dl.json"
-                        ),
-                        hubSkill("cooking", "家常菜大师", "做菜方法论", "skills/cooking.json")
-                    )
-                )
-            },
-            fetchMcpServers = { Result.success(emptyList()) }
-        )
-
-        val out = tool.execute("""{"query":"youtube"}""")
-
-        assertTrue(out.contains("YouTube 下载"))
-        // 安装指令：完整 raw URL（模型可直接复制执行）
-        assertTrue(
-            out.contains(
-                "SkillInstall({\"source\":\"url\",\"url\":\"" +
-                    "https://raw.githubusercontent.com/Ultra-Guru/apex-skill-hub/main/skills/youtube-dl.json\"})"
-            )
-        )
-        // 未命中条目不出现
-        assertFalse(out.contains("家常菜大师"))
-        assertTrue(out.contains("SkillActivate"))
-    }
-
-    // ── MarketSearch：MCP ────────────────────────────────────
-
-    @Test
-    fun `market search mcp stdio hit carries command args and sandbox`() = runBlocking {
-        val tool = MarketSearchTool(
-            fetchSkills = { Result.success(emptyList()) },
-            fetchMcpServers = {
-                Result.success(
-                    listOf(
-                        hubMcp(
-                            "filesystem", "Filesystem access",
-                            command = "npx", args = listOf("-y", "@modelcontextprotocol/server-filesystem"),
-                            runInSandbox = true
-                        )
-                    )
-                )
-            }
-        )
-
-        val out = tool.execute("""{"query":"filesystem","kind":"mcp"}""")
-
-        assertTrue(out.contains("[STDIO]"))
-        assertTrue(out.contains("McpConnect"))
-        assertTrue(out.contains("\"command\":\"npx\""))
-        assertTrue(out.contains("\"run_in_sandbox\": true"))
-        assertTrue(out.contains("McpList()"))
-    }
-
-    @Test
-    fun `market search mcp http hit carries url`() = runBlocking {
-        val tool = MarketSearchTool(
-            fetchSkills = { Result.success(emptyList()) },
-            fetchMcpServers = {
-                Result.success(
-                    listOf(
-                        hubMcp("search", "Web search MCP", transport = "HTTP", url = "https://mcp.example.com/sse")
-                    )
-                )
-            }
-        )
-
-        val out = tool.execute("""{"query":"search","kind":"mcp"}""")
-
-        assertTrue(out.contains("[HTTP]"))
-        assertTrue(out.contains("\"url\":\"https://mcp.example.com/sse\""))
-    }
-
-    // ── MarketSearch：过滤 / 限额 / 错误 ─────────────────────
-
-    @Test
-    fun `kind filter and limit are respected`() = runBlocking {
-        val tool = MarketSearchTool(
-            fetchSkills = {
-                Result.success(
-                    (1..8).map { hubSkill("sk$it", "Skill $it", "match query", "s$it.json") }
-                )
-            },
-            fetchMcpServers = {
-                Result.success(listOf(hubMcp("srv", "match query mcp")))
-            }
-        )
-
-        val skillOnly = tool.execute("""{"query":"match","kind":"skill","limit":3}""")
-        assertTrue(skillOnly.contains("Skill 3"))
-        assertFalse(skillOnly.contains("Skill 4"))
-        assertFalse(skillOnly.contains("== MCP servers"))
-
-        val mcpOnly = tool.execute("""{"query":"match","kind":"mcp"}""")
-        assertTrue(mcpOnly.contains("== MCP servers"))
-        assertFalse(mcpOnly.contains("== Skills"))
-    }
-
-    @Test
-    fun `no match suggests broader keywords or self creation`() = runBlocking {
-        val tool = MarketSearchTool(
-            fetchSkills = { Result.success(listOf(hubSkill("a", "A", "cooking", "a.json"))) },
-            fetchMcpServers = { Result.success(emptyList()) }
-        )
-        val out = tool.execute("""{"query":"quantum chess"}""")
-        assertTrue(out.contains("No marketplace entries matched"))
-        assertTrue(out.contains("broader keywords"))
-    }
-
-    @Test
-    fun `unreachable marketplace returns actionable error`() = runBlocking {
-        val tool = MarketSearchTool(
-            fetchSkills = { Result.failure(Exception("network down")) },
-            fetchMcpServers = { Result.failure(Exception("network down")) }
-        )
-        val out = tool.execute("""{"query":"anything"}""")
-        assertTrue(out.startsWith("Error:"))
-        assertTrue(out.contains("Marketplace unreachable"))
-        // 可操作建议：WebSearch 兜底 / SkillInstall(url) / McpConnect
-        assertTrue(out.contains("WebSearch"))
-    }
-
-    @Test
-    fun `empty query is an argument error`() = runBlocking {
-        val tool = MarketSearchTool(
-            fetchSkills = { Result.success(emptyList()) },
-            fetchMcpServers = { Result.success(emptyList()) }
-        )
-        val out = tool.execute("""{"query":"  "}""")
-        assertTrue(out.startsWith("Error:"))
-        assertTrue(out.contains("query"))
-    }
-
-    @Test
-    fun `bad kind is rejected with suggestion`() = runBlocking {
-        val tool = MarketSearchTool(
-            fetchSkills = { Result.success(emptyList()) },
-            fetchMcpServers = { Result.success(emptyList()) }
-        )
-        val out = tool.execute("""{"query":"x","kind":"plugins"}""")
-        assertTrue(out.startsWith("Error:"))
-        assertTrue(out.contains("'skill', 'mcp' or 'all'"))
-    }
-
-    @Test
-    fun `tool ids and core tier are wired`() {
-        // CORE 集登记（EngineToolPlanner 会按此进请求）
-        assertTrue(ToolTierPolicy.isCore("CapabilityReport"))
-        assertTrue(ToolTierPolicy.isCore("MarketSearch"))
-        assertEquals(2, 2)
     }
 }

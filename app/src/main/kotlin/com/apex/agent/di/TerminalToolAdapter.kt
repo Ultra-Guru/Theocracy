@@ -17,7 +17,7 @@ import kotlinx.serialization.json.jsonPrimitive
  * Adapts a [TerminalTool] (defined in `platform:terminal`, which must not depend on
  * `core:tool-registry`) into the engine's [AgentTool] contract.
  *
- * Mirrors the existing [com.apex.agent.core.tools.skill.SkillToolAdapter] pattern:
+ * Mirrors the existing tool-adapter pattern:
  * all four metadata fields come straight from the terminal tool, and [execute]
  * delegates to its JSON-string [TerminalTool.invoke].
  *

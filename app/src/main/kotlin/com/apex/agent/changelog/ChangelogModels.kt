@@ -8,7 +8,7 @@ import kotlinx.serialization.Serializable
  * 与 version.json 同宿主同链路（raw CDN 零鉴权，公开仓库无需 Token）。
  */
 const val CHANGELOG_URL =
-    "https://raw.githubusercontent.com/Ultra-Guru/Android-Guru-Agent-Release/main/changelog.json"
+    "https://raw.githubusercontent.com/Ultra-Guru/Theocracy-Release/main/changelog.json"
 
 /**
  * changelog.json 清单模型 —— 与开发仓库 release.yml（scripts/changelog.py

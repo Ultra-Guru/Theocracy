@@ -36,11 +36,11 @@ dependencyResolutionManagement {
 // NIA 同款前置检查：JDK 不满足直接给人话报错，而不是等 AGP 在配置中期
 // 抛晦涩异常（本仓 JDK 17 起步，与 CI setup-java 对齐）。
 check(JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_17)) {
-    "Android Guru Agent requires JDK 17+ (current: ${JavaVersion.current()}). " +
+    "Theocracy requires JDK 17+ (current: ${JavaVersion.current()}). " +
         "Set JAVA_HOME to a JDK 17+ installation. CI reference: .github/workflows (setup-java temurin 17)."
 }
 
-rootProject.name = "apex-agent"
+rootProject.name = "theocracy"
 
 // ── 浏览器库 composite build（拆库 E1 迁移期）─────────────────────────────
 // apex-kit-browser 从本仓库抽出为独立库（com.apex.browser:{core,engine,chrome}）。
@@ -55,74 +55,10 @@ when {
     browserKitNested.isDirectory -> includeBuild(browserKitNested)
 }
 
-// ── 标准任务循环库 composite build（同款拆库模式）─────────────────────────
-// apex-kit-standard 从本仓库抽出为独立库（com.apex.standardkit:standard-loop ——
-// Coding「标准思考逻辑线」的循环内核：画像/权限门/压缩/子代理/并行工具/
-// 续跑语义/MCP 指引）。兄弟目录存在时自动接入（本地开发改一处两边生效）；
-// CI 由 workflow 按 gradle/standard-kit.lock 锁定版本检出（ci.yml / apk.yml /
-// release.yml 的 pinned checkout 步骤）；目录不存在时跳过 —— 走远端
-// Maven 坐标。子目录兜底位供库仓 consumer-check 双仓布局复用。
-val standardKitSibling = file("../apex-kit-standard")
-val standardKitNested = file("apex-kit-standard")
-when {
-    standardKitSibling.isDirectory -> includeBuild(standardKitSibling)
-    standardKitNested.isDirectory -> includeBuild(standardKitNested)
-}
 
-// ── 织造循环库 composite build（同款拆库模式）───────────────────────────
-// apex-kit-loom 从本仓库抽出为独立库（com.apex.loomkit:loom-weave ——
-// Coding「织造思考逻辑线」的循环内核：in-band 标记协议/梭回合机/权限
-// 三态门/子线程群/织造包/digest 压缩）。接线方式与 apex-kit-standard
-// 完全同构：兄弟目录本地开发、嵌套目录 CI consumer-check 兜底、目录
-// 不存在时走远端 Maven 坐标。库仓库：Ultra-Guru/apex-kit-loom（含独立
-// CI + 宿主 consumer-check）。
-val loomKitSibling = file("../apex-kit-loom")
-val loomKitNested = file("apex-kit-loom")
-when {
-    loomKitSibling.isDirectory -> includeBuild(loomKitSibling)
-    loomKitNested.isDirectory -> includeBuild(loomKitNested)
-}
 
-// ── 信使调度库 composite build（同款拆库模式）───────────────────────────
-// apex-kit-courier 从本仓库抽出为独立库（com.apex.courierkit:courier-dispatch
-// —— Coding「信使思考逻辑线」的循环内核：收发匣 steer/queue 投递/趟次步进
-// 机/勘合门/档房卷宗压缩/示廊公告/下站前哨）。接线方式与 apex-kit-loom
-// 完全同构：兄弟目录本地开发、嵌套目录 CI consumer-check 兜底、目录
-// 不存在时走远端 Maven 坐标。库仓库：Ultra-Guru/apex-kit-courier（含独立
-// CI + 宿主 consumer-check）。
-val courierKitSibling = file("../apex-kit-courier")
-val courierKitNested = file("apex-kit-courier")
-when {
-    courierKitSibling.isDirectory -> includeBuild(courierKitSibling)
-    courierKitNested.isDirectory -> includeBuild(courierKitNested)
-}
 
-// ── 工作区浏览器库 composite build（拆库 E1 迁移期）───────────────────────
-// apex-kit-workspace（com.apex.workspace:{core,explorer}）：Coding 模式
-// 全屏工作区浏览器（文件树 / 多格式预览 / Git 面板 / 变更和产物 / 实时跟随）。
-// 接线方式与 apex-kit-browser 完全同构：兄弟目录本地开发、嵌套目录 CI
-// consumer-check 兜底、目录不存在时走远端 Maven 坐标。
-// 库仓库：Ultra-Guru/apex-kit-workspace（含独立 CI + 宿主 consumer-check）。
-val workspaceKitSibling = file("../apex-kit-workspace")
-val workspaceKitNested = file("apex-kit-workspace")
-when {
-    workspaceKitSibling.isDirectory -> includeBuild(workspaceKitSibling)
-    workspaceKitNested.isDirectory -> includeBuild(workspaceKitNested)
-}
 
-// ── 认知记忆库 composite build（同款拆库模式）─────────────────────────────
-// apex-kit-memory 从本仓库抽出为独立库（com.apex.memkit:memory-core ——
-// 统一旧 cs-mem（UI 轨迹/FSM 宏）与 builtin/memory（聊天记忆/知识图谱）
-// 双轨记忆域：会话键控情景 / 差分摄取 / 入口指纹集合宏匹配 / 蒸馏纪律 /
-// 能量衰减 / 拓扑别名 / 隔离防护）。接线方式与 apex-courier-kit 完全同构：
-// 兄弟目录本地开发、嵌套目录 CI consumer-check 兜底、目录不存在时走远端
-// Maven 坐标。库仓库：Ultra-Guru/apex-kit-memory（含独立 CI）。
-val memoryKitSibling = file("../apex-kit-memory")
-val memoryKitNested = file("apex-kit-memory")
-when {
-    memoryKitSibling.isDirectory -> includeBuild(memoryKitSibling)
-    memoryKitNested.isDirectory -> includeBuild(memoryKitNested)
-}
 
 // 主APK
 include(":app")
@@ -141,27 +77,14 @@ include(":core:llm-adapter")
 include(":core:tool-registry")
 include(":core:logging")
 
-// Coding 模式（与 Agent 模式同级别）：编码工具集 + 编码引擎
-include(":core:code-tools")
-include(":core:code-engine")
-
-// 标准任务循环文本加速核（C++17 JNI：token 估算 / 行级 diff / 模糊定位；
-// 算法层 host 可测，JNI 桥 Android 平台——与 :terminal-native 同款接线）
-include(":core:code-native")
-
 // Android平台层
 include(":platform:privilege")
 include(":platform:persistence")
 include(":platform:terminal")
 // 认知记忆宿主层（apex-kit-memory 的平台端口 / DI / 旧存储迁移 / WorkManager
 // 维护调度 / 记忆召回工具 —— 取代旧 :platform:cs-mem）
-include(":platform:memory-host")
-include(":platform:code-workspace")
 // 浏览器自动化大功能：browser_* 工具协议 + apex-kit-browser 库 DI 接线
 include(":platform:browser-agent")
-
-// 逆向 MCP Host（#173）：手机作为 MCP Server，PC 端 AI 经 streamable HTTP 控制手机
-include(":platform:mcp-host")
 
 // Terminal Runtime 2.0 — vendored VT100/ANSI emulator (ATR Phase 2)
 include(":terminal-emulator")

@@ -72,18 +72,13 @@ class TemplateStudioViewModel @Inject constructor(
     }
 
     fun openEditor(template: PromptTemplate?) {
-        // 新建：当前页签决定作用域（Agent 页签建 agent 模板，Coding 页签建 coding 模板）。
         _editing.value = template ?: PromptTemplate(
             id = "",
             name = "",
             description = "",
-            category = if (_tab.value == TemplateScope.CODING) {
-                com.apex.agent.core.engine.templates.TemplateCategory.CODING
-            } else {
-                com.apex.agent.core.engine.templates.TemplateCategory.CUSTOM
-            },
+            category = com.apex.agent.core.engine.templates.TemplateCategory.CUSTOM,
             content = "",
-            scope = _tab.value
+            scope = TemplateScope.AGENT
         )
     }
 

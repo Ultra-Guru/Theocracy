@@ -4,17 +4,12 @@ import android.content.Context
 import com.apex.agent.core.tools.*
 import com.apex.agent.core.tools.builtin.*
 import com.apex.agent.core.tools.catalog.CapabilityReportTool
-import com.apex.agent.core.tools.catalog.McpToolRegistrar
-import com.apex.agent.core.tools.catalog.MarketSearchTool
 import com.apex.agent.core.tools.catalog.ToolActivationStore
 import com.apex.agent.core.tools.catalog.ToolListTool
 import com.apex.agent.core.tools.catalog.ToolOpenTool
 import com.apex.agent.core.tools.catalog.ToolSearchTool
 import com.apex.agent.core.tools.connector.ConnectorMessenger
 import com.apex.agent.core.tools.connector.ConnectorRegistry
-import com.apex.agent.core.tools.marketplace.HubSource
-import com.apex.agent.core.tools.skill.SkillRegistry
-import com.apex.agent.core.tools.mcp.McpManager
 import com.apex.agent.github.GithubApiService
 import com.apex.agent.github.GithubTokenManager
 import com.apex.agent.github.tools.*
@@ -120,16 +115,6 @@ import com.apex.agent.tools.AndroidNetworkInfoReader
 import com.apex.agent.tools.AndroidVibrator
 import com.apex.agent.tools.CameraTorchController
 import com.apex.agent.tools.TtsSpeaker
-import com.apex.agent.core.codetools.CodeTools
-import com.apex.agent.core.codetools.CodeWorkspaceRoots
-import com.apex.agent.core.codetools.diagnostics.CodeDiagnostics
-import com.apex.agent.core.codetools.git.GitCommandRunner
-import com.apex.agent.core.codetools.git.GitTools
-import com.apex.agent.core.codetools.html.HtmlAnalyzeLayoutTool
-import com.apex.agent.core.codetools.html.HtmlCompareLayoutsTool
-import com.apex.agent.core.codetools.tools.CodeTodoTool
-import com.apex.agent.core.code.subagent.CodeTaskTool
-import com.apex.agent.core.code.subagent.SubAgentRunner
 import com.apex.agent.core.engine.ApexAgentEngine
 import com.apex.agent.core.engine.EnvironmentInfoProvider
 import com.apex.agent.core.engine.HookRunner
@@ -142,8 +127,6 @@ import com.apex.agent.core.logging.AppLogger
 import com.apex.agent.core.logging.LogCategory
 import com.apex.agent.core.tools.hook.HookEvent
 import com.apex.agent.core.tools.hook.HookRegistry
-import com.apex.agent.core.tools.skill.SkillHotReloadLogLevel
-import com.apex.agent.core.tools.skill.SkillHotReloader
 import com.apex.agent.platform.browser.BrowserAgentTools
 import com.apex.agent.platform.browser.BrowserSessionTools
 import com.apex.browser.engine.BrowserEngine
@@ -286,7 +269,7 @@ object ToolModule {
      * Issue #165 —— 钩子注册表（@Singleton）：声明式配置落
      * `<filesDir>/hooks/hooks.json`（原子写 + 损坏备份重建），审计日志
      * hooks.log 256KB 滚动；init 幂等预置三内置系统钩子。
-     * errorLog → AppLogger（PLUGIN 分类与 SkillHotReloader 惯例一致）。
+     * errorLog → AppLogger（PLUGIN 分类惯例）。
      * 作用域：进程级 Supervisor + IO，仅承载 fire-and-forget 派发。
      */
     @Provides
@@ -349,24 +332,6 @@ object ToolModule {
     @Provides
     @Singleton
     fun provideToolActivationStore(): ToolActivationStore = ToolActivationStore()
-
-    /**
-     * v4 — MCP 工具注册器：McpManager 会话事件 → ToolRegistry 一等工具
-     * （mcp__server__tool）。IO 专用 Supervisor 作用域：发现失败不影响宿主，
-     * 进程级生命周期（不主动取消）。
-     */
-    @Provides
-    @Singleton
-    fun provideMcpToolRegistrar(
-        mcpManager: McpManager,
-        registry: ToolRegistry
-    ): McpToolRegistrar = McpToolRegistrar(
-        manager = mcpManager,
-        registry = registry,
-        scope = kotlinx.coroutines.CoroutineScope(
-            kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO
-        )
-    )
 
     /**
      * v3 统一执行器装配：gate（环境前置 + 风险审批）→ schema 校验 →
@@ -454,7 +419,6 @@ object ToolModule {
         browserAgentTools: BrowserAgentTools,
         browserSessionTools: BrowserSessionTools,
         browserLayoutTools: com.apex.agent.platform.browser.BrowserLayoutTools,
-        fusionController: com.apex.agent.fusion.FusionBundleController,
         // T76: Linux environment productionization 依赖
         linuxEnvironmentHealth: LinuxEnvironmentHealth,
         ubuntuBootstrapManager: UbuntuBootstrapManager,
@@ -476,14 +440,10 @@ object ToolModule {
         // T92（D5 完成度）：argv 能力源（两处 ProotCommandSpawner 的能力门输入）
         capabilitySource: com.apex.agent.platform.terminal.proot.PRootCapabilitySource,
         // 注：rootfsTarget 已在上方参数区声明（同一类型），本地与远端 CI 红修复同款合并去重
-        skillRegistry: SkillRegistry,
         // v2: MCP 三工具接线 + 风险门（HIGH 风险工具首次调用弹用户确认）+ 使用统计。
-        mcpManager: McpManager,
         riskAwareToolGate: RiskAwareToolGate,
         // v1.0 #155：权限模式门（与风险门合成 PermissionAwareToolGate 入链）。
         permissionModeGate: PermissionModeGate,
-        // v1.0 #153：git 工具执行通道（PRoot Ubuntu 沙箱）。
-        gitRunner: GitCommandRunner,
         toolUsageTracker: ToolUsageTracker,
         // v3 单例注入：环境态 / 追踪 / 熔断 / 组合动作。
         environmentState: ToolEnvironmentState,
@@ -492,9 +452,6 @@ object ToolModule {
         shortcutRegistry: ShortcutRegistry,
         // 消息连接器（微信/飞书/Telegram）：注册表 + 发送器，注册 connector_* 工具
         connectorRegistry: ConnectorRegistry,
-        // Coding 模式：工作区根解析（code_* 工具的动态沙箱根）+ 共享 todo 单例
-        codeWorkspaceRoots: CodeWorkspaceRoots,
-        codeTodoTool: CodeTodoTool,
         // v0.2 #147：子代理引擎工厂的共享单例集（每次 CodeTask 构造全新
         // ApexAgentEngine 实例，隔离上下文；依赖均为无环叶子见各 Module）
         llmClient: LlmClient,
@@ -508,11 +465,8 @@ object ToolModule {
         conversationMemory: com.apex.agent.core.engine.ConversationMemory,
         contextArchive: FileContextArchive,
         // 技能渐进披露：SkillActivate 工具 + 子代理引擎工厂共享的激活存储。
-        skillActivation: com.apex.agent.core.tools.skill.SkillActivationStore,
         // 能力自省：官方市场源（MarketplaceModule 单例）—— MarketSearch
         // 工具检索技能+MCP 双 hub 目录。
-        hubSource: HubSource,
-        // v3 子代理预算接线（设置 → 子代理）：SubAgentRunner 每次运行读快照。
         // 全自动模式（BYPASS）短路命令级确认门的设置源（实时读取，改设置即生效）。
         settingsRepository: SettingsRepository,
         // §14h App Control：工具 → UI 的真实导航桥（打开设置/诊断等页面）。
@@ -721,37 +675,6 @@ object ToolModule {
         // P83：Edit 已建成但从未注册（搜索-替换块编辑，原子失败语义）—— 补接线
         registry.register(SafeAgentTool(FileEditTool(workspaceDir)))
 
-        // ═══ 2b. Coding 模式工具（Code Mode 与 Agent 模式互用）═══
-        // CodeRead/edit/write/grep/glob/todo/check —— 业界标准契约的编码工具集。
-        // 根目录经 CodeWorkspaceRoots 动态解析（Code 屏切换工作区即时生效），
-        // 默认工作区与上方 workspaceDir 同源（linux/workspaces/default），
-        // 两模式看到同一份文件。CORE 集已加入（ToolTierPolicy），两模式默认可见。
-        // v0.2 #148：注入进程内诊断引擎 —— CodeEdit/CodeWrite 成功后自动
-        // 附加语法诊断（JSON/XML/括号/缩进/死链），模型即错即修；CodeCheck
-        // 随 CodeTools.all 一并注册，可主动检查任意文件。
-        CodeTools.all(
-            roots = codeWorkspaceRoots,
-            todo = codeTodoTool,
-            diagnostics = CodeDiagnostics()
-        ).forEach {
-            registry.register(SafeAgentTool(it))
-        }
-
-        // ═══ 2a-bis. HTML 产物布局分析（静态 · 文件级）═══
-        // 与 BrowserAnalyzeLayout（动态 · 真实渲染几何）互补：写完 HTML 产物后
-        // 无需浏览器内核即可验证页面骨架/响应式/可访问性问题，毫秒级、可离线。
-        registry.register(SafeAgentTool(HtmlAnalyzeLayoutTool(codeWorkspaceRoots)))
-        registry.register(SafeAgentTool(HtmlCompareLayoutsTool(codeWorkspaceRoots)))
-
-        // ═══ 2c. Git 工具（v1.0 #153，两模式互用）═══
-        // CodeGitStatus/diff/log/commit/branch —— git 二进制经 PRoot Ubuntu
-        // 沙箱执行（rootfs 预装），工作区恒定 bind 为 guest /workspace；
-        // diff 输出统一 diff 原文，UI 侧 DiffOutput 复用 +/- 行着色；
-        // commit 幂等自动 init + -c 注入身份。沙箱未装时降级为引导文本。
-        GitTools.all(runner = gitRunner).forEach {
-            registry.register(SafeAgentTool(it))
-        }
-
         // ═══ 3. 网络 (4) ═══
         registry.register(SafeAgentTool(WebFetchTool(httpClient)))
         registry.register(SafeAgentTool(WebSearchTool(httpClient)))
@@ -921,16 +844,6 @@ object ToolModule {
             httpClient = httpClient
         ).forEach { registry.register(SafeAgentTool(it)) }
 
-        // ═══ MCP 服务器工具 ═══
-        // v3+P83 联合收敛：原实现把 McpCallTool/McpListTool/McpConnectTool 注册了
-        // 三次（第 12 节前后各一次 + 尾部重复块）——REPLACE 策略下静默互踩。
-        // 此处为唯一注册点（v3 去重 + P83 尾部重复块移除，同题同解）。
-        // v4：连接成功后 McpToolRegistrar 还会把远程工具以 mcp__server__tool
-        // 一等函数注册进来（带真实 schema，模型可直接调用）。
-        registry.register(SafeAgentTool(McpCallTool(mcpManager)))
-        registry.register(SafeAgentTool(McpListTool(mcpManager)))
-        registry.register(SafeAgentTool(McpConnectTool(mcpManager)))
-
         // ═══ 12. Tool System v4 — 工具目录元工具（渐进披露）═══
         // 注册表 ~110 工具不再全量随请求发送（根因：请求体撑爆 + 非法函数名
         // 直接 400）。CORE 集常驻，其余能力经目录按需加载：
@@ -941,20 +854,15 @@ object ToolModule {
         registry.register(SafeAgentTool(ToolListTool(registry)))
 
         // ═══ 12b. 能力自省元工具（「agent 不懂自己能干什么」的根因修复）═══
-        // CapabilityReport：权限阶梯（与系统提示词同源）/ 实时环境 / 工具与
-        // 技能与 MCP 库存 + 扩展梯度，一键自省——遇 permission denied 或
-        // 「我能做 X 吗」时先自省再行动，不猜不弃；
-        // MarketSearch：官方技能+MCP 市场检索（此前 7 个市场源只服务 UI，
-        // agent 侧完全不可见）——「没装的能力一步之遥」。
+        // CapabilityReport：权限阶梯（与系统提示词同源）/ 实时环境 / 工具库存 +
+        // 扩展梯度，一键自省——遇 permission denied 或「我能做 X 吗」时先自省
+        // 再行动，不猜不弃。
         registry.register(
             SafeAgentTool(
                 CapabilityReportTool(
                     registry = registry,
                     environmentState = environmentState,
                     privilegeLevel = { privilegeInfoProvider.currentLevel() },
-                    installedSkillCount = { skillRegistry.getInstalled().size },
-                    configuredMcpCount = { mcpManager.getConfigs().size },
-                    connectedMcpCount = { mcpManager.getConnectedServers().size },
                     // v3 S3：GitHub 连接快照（"login|repo"，未设置仓库 = "-"；
                     // 未连接 = null）—— CapabilityReport 的 GitHub 行数据源
                     githubStateProvider = {
@@ -968,26 +876,6 @@ object ToolModule {
                 )
             )
         )
-        registry.register(
-            SafeAgentTool(
-                MarketSearchTool(
-                    fetchSkills = { hubSource.listSkills() },
-                    fetchMcpServers = { hubSource.listMcpServers() }
-                )
-            )
-        )
-
-        // ═══ 13. Skill 工具接线（管理工具 + composite/script 装载注册）═══
-        registry.register(SafeAgentTool(SkillSearchTool(httpClient)))
-        registry.register(SafeAgentTool(SkillInstallTool(skillRegistry, httpClient, skillActivation)))
-        registry.register(SafeAgentTool(SkillCreateTool(skillRegistry)))
-        registry.register(SafeAgentTool(SkillListTool(skillRegistry)))
-        registry.register(SafeAgentTool(SkillUninstallTool(skillRegistry)))
-        // 技能渐进披露：模型侧装载入口（全文返回 + 写入激活集持续注入）。
-        registry.register(SafeAgentTool(SkillActivateTool(skillRegistry, skillActivation)))
-
-        // ═══ 13b. FusionBundle 工具族（FusionList/FusionInfo/FusionActivate —— 注册体在卫星文件）═══
-        registerFusionBundleTools(registry, fusionController)
 
         // ═══ 14. Tool System v3/v5 新工具（纯 JVM）—— 注册体拆至同文件（同上 SRP 预算）
         registerToolSystemV3V5Tools(registry, conversationMemory, contextArchive)
@@ -1027,8 +915,6 @@ object ToolModule {
         registerAppControlTools(
             registry = registry,
             settingsRepository = settingsRepository,
-            mcpManager = mcpManager,
-            skillRegistry = skillRegistry,
             toolAuditLogger = toolAuditLogger,
             navigationBridge = navigationBridge
         )
@@ -1048,74 +934,6 @@ object ToolModule {
             ),
             redactor = vaultRepository.secretRedactor
         )
-
-        // ═══ 16. #151 技能热注册器：装/卸/开关技能免重启 ═══
-        // 旧实现是启动期快照注册（新装技能要重启 App 才有工具）。现改为
-        // SkillHotReloader：首次全量同步（吸收旧快照遗留，升级路径兼容）+
-        // 订阅 SkillRegistry.changes 增量 diff，安装/卸载/启停即时生效。
-        // prompt 注入本就是热的（引擎每轮读 getPromptInjections）。
-        // 防劫持：只管理自己注册的工具 id，绝不触碰核心工具（三层防线见其 KDoc）。
-        SkillHotReloader(
-            skillRegistry = skillRegistry,
-            toolRegistry = registry,
-            toolExecutor = mainExecutor,
-            scope = kotlinx.coroutines.CoroutineScope(
-                kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.IO
-            ),
-            logger = { level, message ->
-                when (level) {
-                    SkillHotReloadLogLevel.INFO -> AppLogger.instance.info(
-                        LogCategory.PLUGIN, "SkillHotReloader", message
-                    )
-                    SkillHotReloadLogLevel.WARN -> AppLogger.instance.warn(
-                        LogCategory.PLUGIN, "SkillHotReloader", message
-                    )
-                }
-            }
-        ).start()
-
-        // ═══ 17. #147 子代理 task 工具（CodeTask）═══
-        // 主代理把探索/调研类工作委派给隔离上下文的子代理：全新引擎实例跑
-        // 完整 ReAct 循环，结论作为工具结果返回（中间过程不进入主对话）。
-        // 工厂每次构造全新 ApexAgentEngine（共享单例依赖；memory=null 会话即焚，
-        // CS-Mem 不旁路不观察）；registry/mainExecutor 此刻已装配完毕，lambda
-        // 惰性求值安全。工具集经 allowedToolIds 收窄（不附带 tool_choice=required，
-        // 子代理最终轮能输出纯文本结论）。
-        val subAgentRunner = SubAgentRunner(
-            engineFactory = { cfg ->
-                ApexAgentEngine(
-                    llmClient = llmClient,
-                    toolRegistry = registry,
-                    toolExecutor = mainExecutor,
-                    config = cfg,
-                    contextCompressor = contextCompressor,
-                    skillRegistry = skillRegistry,
-                    privilegeInfoProvider = privilegeInfoProvider,
-                    environmentInfoProvider = environmentInfoProvider,
-                    modelRuntime = modelRuntime,
-                    // 渐进披露：子代理共享主代理的技能激活集（主代理装备的
-                    // 方法论在子代理上下文同样生效；未激活则仅目录可见，
-                    // 避免 46 技能全量注入撞爆子代理请求）。
-                    skillActivation = skillActivation
-                )
-            },
-            // v3 设置层预算接线（设置 → 子代理）：每次 run 读快照，改设置
-            // 即时生效；sanitized 收敛旧版本/手改 JSON 的越界值。
-            settingsProvider = { settingsRepository.agentSettings.value.subagent.sanitized() },
-            // Issue #165 —— SubagentStop：子代理回合收官（结果返回前）非阻断派发。
-            // sessionId 置空：子代理引擎的会话号内生于其自身 execute，工具侧
-            // 不可见；subagentId 由类型 + 任务描述组成，审计日志可定位。
-            onSubagentStop = { typeKey, description, success ->
-                hookRegistry.dispatchFireAndForget(
-                    HookEvent.SubagentStop(
-                        sessionId = "",
-                        subagentId = "CodeTask-$typeKey-${description.take(32)}" +
-                            (if (success) "" else " (failed)")
-                    )
-                )
-            }
-        )
-        registry.register(SafeAgentTool(CodeTaskTool(subAgentRunner)))
 
         // ═══ 15. v3 批量执行 + 组合动作（依赖主执行器，循环依赖断点在此）═══
         // ToolBatchRun：模型一次性声明有序步骤（首错即停 + NOT_EXECUTED 标记 +

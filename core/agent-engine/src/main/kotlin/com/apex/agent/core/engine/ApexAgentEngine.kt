@@ -31,8 +31,6 @@ import com.apex.agent.core.tools.ToolStreamEvent
 import com.apex.agent.core.tools.builtin.context.SessionContextArchive
 import com.apex.agent.core.tools.catalog.ToolActivationStore
 import com.apex.agent.core.tools.catalog.ToolRequestBudget
-import com.apex.agent.core.tools.skill.SkillActivationStore
-import com.apex.agent.core.tools.skill.SkillRegistry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.TimeoutCancellationException
@@ -88,12 +86,10 @@ class ApexAgentEngine(
     internal val contextCompressor: ContextCompressor? = null,
     // #396 上下文归档：会话边界（新会话/恢复）清空；写入方为压缩装饰器。
     internal val contextArchive: SessionContextArchive? = null,
-    internal val skillRegistry: SkillRegistry? = null,
 
     private val privilegeInfoProvider: PrivilegeInfoProvider? = null,
     private val environmentInfoProvider: EnvironmentInfoProvider? = null,
     // internal —— EngineToolExecution.kt 同包扩展直调（隐式记忆采集）。
-    internal val memoryObserver: ExecutionMemoryObserver? = null,
     /**
      * 已连接服务提供者（GitHub/连接器等）：非空时系统提示词注入
      * "## Connected Services" 段，让模型知道这些服务的工具已就绪。
@@ -130,14 +126,6 @@ class ApexAgentEngine(
     /** #168 六档思考：AUTO 选档/迭代倍率/工具自检/自评清单全在此，引擎仅三个钩子。 */
     // internal —— EngineCompressionGate.kt 压缩阈值解析直调。
     internal val thinkingController: ThinkingModeController = ThinkingModeController(), // 默认值兼容旧测试
-    /**
-     * 技能会话激活存储（技能渐进披露）。非空时：系统提示词携带
-     * 「Skill Catalog」目录段，且 skillPrompts 只注入已激活技能的方法论
-     * 全文（SkillRegistry.getActivePromptInjections）；模型经 SkillActivate
-     * 工具装载。为空时回退 legacy 行为（全部启用技能全量注入），
-     * 既有单测与子代理零改动兼容。
-     */
-    internal val skillActivation: SkillActivationStore? = null,
     /**
      * 长任务韧性守卫：LLM 瞬时错误退避重试 / 空响应重试 / 工具瞬时重试 /
      * 连续失败换路提示。默认启用（长任务需求）；测试可注入
@@ -182,14 +170,6 @@ class ApexAgentEngine(
      */
     @Volatile
     private var firstGreetingTurn = false
-
-    /**
-     * 本轮召回的聊天长期记忆（已格式化文本；null = 无可召回内容）。
-     * execute() 入口经 memoryObserver.recallChatMemory 填充，finally 复位；
-     * 系统提示词据此注入 "## Remembered About You" 段。
-     */
-    @Volatile
-    private var chatMemoryNote: String? = null
 
     /** 本轮聊天信号（共情/澄清，ChatSignalDetector）。execute() 入口填充，finally 复位。 */
     @Volatile
@@ -492,39 +472,14 @@ class ApexAgentEngine(
         var totalToolCalls = 0
         var totalIterations = 0
         var taskHadFailure = false
-        // 本轮历史起点（记忆沉淀用）：finally 里从该下标之后找最终助手回复；
-        // 异常路径下未进入 try 体则为 -1（跳过沉淀）。
-        var turnHistoryStart = -1
-
         try {
-            // 隐式记忆采集：观察者异常包防线，防 isRunning 卡死。
-            try {
-                memoryObserver?.onTaskStart(input.text, null)
-            } catch (e: Throwable) {
-                AppLogger.instance.warn(
-                    LogCategory.ENGINE, "ApexAgentEngine",
-                    "memoryObserver.onTaskStart threw: ${e.message}"
-                )
-            }
-
             // ═══ 首轮问候检测 + 聊天记忆召回（发送前、历史追加前）═══
             // 首轮 = 历史尚无任何 User 消息；纯问候 → 系统提示词注入硬约束段。
             firstGreetingTurn =
                 conversationHistory.none { it is LlmMessage.User } &&
                     SmallTalkDetector.isGreetingOnly(input.text)
             chatSignal = ChatSignalDetector.detect(input.text)
-            // 聊天长期记忆召回：失败折叠为 null（记忆子系统异常绝不阻断主对话）。
-            chatMemoryNote = try {
-                memoryObserver?.recallChatMemory(input.text)?.takeIf { it.isNotBlank() }
-            } catch (e: Throwable) {
-                AppLogger.instance.warn(
-                    LogCategory.ENGINE, "ApexAgentEngine",
-                    "recallChatMemory threw (ignored): ${e.message}"
-                )
-                null
-            }
             // 本轮起点（记忆沉淀用）：finally 里从该下标之后找最终助手回复。
-            turnHistoryStart = conversationHistory.size
 
             val userText = buildUserText(input)
             val userMessage = LlmMessage.User(content = userText, images = input.images)
@@ -629,34 +584,8 @@ class ApexAgentEngine(
             emit(AgentEvent.Error(LlmErrorText.userMessage(e), recoverable = true))
         } finally {
             isRunning = false
-            // 隐式记忆采集：finally 保证无论成败都关闭会话；观察者异常兜底不阻断 Complete。
-            try {
-                memoryObserver?.onTaskFinish(success = !taskHadFailure && !anyActionFailed)
-            } catch (e: Throwable) {
-                AppLogger.instance.warn(
-                    LogCategory.ENGINE, "ApexAgentEngine",
-                    "memoryObserver.onTaskFinish threw: ${e.message}"
-                )
-            }
-            // 聊天记忆自动沉淀：取本轮起点后最后一条有正文的 Assistant（异常兜底）。
-            try {
-                val finalAssistantText = if (turnHistoryStart >= 0) {
-                    conversationHistory.drop(turnHistoryStart)
-                        .filterIsInstance<LlmMessage.Assistant>()
-                        .lastOrNull { it.content.isNotBlank() }?.content
-                } else null
-                if (finalAssistantText != null) {
-                    memoryObserver?.onConversationTurn(input.text, finalAssistantText)
-                }
-            } catch (e: Throwable) {
-                AppLogger.instance.warn(
-                    LogCategory.ENGINE, "ApexAgentEngine",
-                    "memoryObserver.onConversationTurn threw: ${e.message}"
-                )
-            }
             // 复位轮次级注入态（防止下一轮携带上一轮的问候约束/记忆快照）。
             firstGreetingTurn = false
-            chatMemoryNote = null
             chatSignal = null
             // Cancel any dangling plan-confirmation deferred so it doesn't leak.
             planConfirmationDeferred?.complete(PlanDecision.legacy(false))
@@ -797,27 +726,6 @@ class ApexAgentEngine(
             if (thinkingController.effectiveLevel(config) != ThinkingLevel.NONE && !thinkingEmittedForIteration) {
                 emit(AgentEvent.ThinkingStart(iteration, thinkingController.effectiveLevel(config)))
                 thinkingEmittedForIteration = true
-            }
-
-            // 隐式记忆旁路：LLM 推理前尝试"肌肉记忆"FSM 宏执行，命中则跳过
-            // 本轮 LLM；不匹配/失败照常走 LLM。
-            when (val bypass = memoryObserver?.tryBypass()) {
-                is BypassOutcome.Executed -> {
-                    emit(
-                        AgentEvent.ResponseChunk(
-                            "⚡ 肌肉记忆旁路执行完成（${bypass.actionCount} 步，已跳过 LLM 推理）。"
-                        )
-                    )
-                    continue
-                }
-                is BypassOutcome.Failed -> {
-                    // 旁路执行偏离/异常，回退到 LLM 接管（日志已由 BypassEngine 记录）。
-                    AppLogger.instance.warn(
-                        LogCategory.ENGINE, "ApexAgentEngine",
-                        "Bypass failed, falling back to LLM: ${bypass.reason}"
-                    )
-                }
-                else -> { /* NotAttempted / NotMatched → 照常走 LLM */ }
             }
 
             // ═══ Tool System v4：先建工具计划，再建消息 ═══
@@ -1131,15 +1039,12 @@ class ApexAgentEngine(
         toolNameMap = EngineToolPlanner.idToProviderName(currentToolPlan),
         toolsUnavailable = currentToolPlan?.tools?.isEmpty() == true &&
             toolDegradationLevel >= EngineToolPlanner.DEGRADATION_NO_TOOLS,
-        skillPrompts = skillPromptInjections, // 解析在 EngineSkillPromptResolver.kt
-        skillCatalog = skillCatalogDigests,
         environmentSummary = environmentInfoProvider?.environmentSummary(),
         connectedServices = connectedServicesProvider?.connectedServicesSummary(),
         // Issue #164：全局规则（Agent 模式通道；coding 实例不设值，见 updateGlobalRules KDoc）
         globalRules = globalRulesText,
         // 首轮纯问候硬约束 + 聊天记忆召回（execute() 置位，finally 复位）。
         firstTurnGreeting = firstGreetingTurn,
-        memoryContext = chatMemoryNote,
         chatSignal = chatSignal
     )
 

@@ -451,11 +451,4 @@ internal suspend fun ApexAgentEngine.finalizeToolCallOutcome(
         }
     }
 
-    // 隐式记忆采集（报告 P2）：记录每个已执行动作及其成败。
-    // 传入 success 供 CS-Mem 蒸馏时过滤失败动作（避免"鼠标连点失败"
-    // 也被压进 FSM 宏技能，使学到的宏技能必然无法回放）。
-    memoryObserver?.onActionExecuted(
-        "${toolCall.name}(${toolCall.arguments.take(120)})",
-        success = outcome.success
-    )
 }

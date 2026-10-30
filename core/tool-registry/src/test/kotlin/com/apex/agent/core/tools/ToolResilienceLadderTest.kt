@@ -1,10 +1,5 @@
 package com.apex.agent.core.tools
 
-import com.apex.agent.core.tools.catalog.McpAgentTool
-import com.apex.agent.core.tools.skill.SkillImplementation
-import com.apex.agent.core.tools.skill.SkillStep
-import com.apex.agent.core.tools.skill.SkillToolAdapter
-import com.apex.agent.core.tools.skill.SkillToolDef
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -19,7 +14,7 @@ import org.junit.Test
  *    第一次 2s、第二次 5s、第三次 10s …… 直到 3 分钟封顶自动停止；
  * 2. MCP 工具失败 → 错误进 "Error:" 协议（此前服务端 isError 被字符串级
  *    成败判定当成功）+ 换路指引（任务继续，换方式完成）；
- * 3. Skills 步骤失败 → 断点上下文 + 换路指引（不静默短路）。
+
  *
  * 纯决策/纯渲染逻辑，全部无 IO 无时钟；执行器路径用 runTest 虚拟时间
  * （delay(2s…160s) 瞬时完成，仅断言重试次数与最终结果）。
@@ -155,82 +150,4 @@ class ToolResilienceLadderTest {
         assertEquals(1, tool.calls.get())
     }
 
-    // ═══ 3. MCP 失败渲染：Error 协议 + 换路指引 ═══════════════════
-
-    @Test
-    fun `mcp server-reported failure now carries the error prefix and fallback guidance`() {
-        val rendered = McpAgentTool.renderServerError("github", "create_issue", "repo not found")
-        assertTrue(rendered.startsWith("Error:"))
-        assertTrue(rendered.contains("'github/create_issue'"))
-        assertTrue(rendered.contains("NOT aborted"))
-        assertTrue(rendered.contains("different approach"))
-    }
-
-    @Test
-    fun `mcp transport failure carries reconnect hint and fallback guidance`() {
-        val rendered = McpAgentTool.renderTransportFailure("github", "create_issue", "connection reset")
-        assertTrue(rendered.startsWith("Error:"))
-        assertTrue(rendered.contains("McpConnect('github')"))
-        assertTrue(rendered.contains("NOT aborted"))
-    }
-
-    // ═══ 4. Skill 步骤失败：断点上下文 + 换路指引 ══════════════════
-
-    /** 脚本化执行器：按工具名返回预设结果（流式通道不被 Skill 适配层使用）。 */
-    private class FakeExecutor(private val script: Map<String, String>) : ToolExecutor {
-        val executed = mutableListOf<String>()
-        override suspend fun execute(toolId: String, arguments: String): String {
-            executed += toolId
-            return script[toolId] ?: "OK"
-        }
-        override fun executeStream(toolId: String, arguments: String): kotlinx.coroutines.flow.Flow<ToolStreamEvent> =
-            kotlinx.coroutines.flow.flow { emit(ToolStreamEvent.Error("not implemented in fake")) }
-    }
-
-    private fun compositeSkill(steps: List<SkillStep>) = SkillToolDef(
-        id = "skill_two_step",
-        name = "Two Step",
-        description = "test skill",
-        parameters = "{}",
-        implementation = SkillImplementation(type = "composite", steps = steps)
-    )
-
-    @Test
-    fun `skill step failure reports breakpoint context and continues guidance`() = runTest {
-        val executor = FakeExecutor(
-            mapOf(
-                "fs_read" to "step-1 content",
-                "fs_write" to "Error: permission denied: read-only mount"
-            )
-        )
-        val skill = compositeSkill(
-            listOf(
-                SkillStep(tool = "fs_read", args = mapOf("p" to "a.txt")),
-                SkillStep(tool = "fs_write", args = mapOf("p" to "b.txt"))
-            )
-        )
-        val adapter = SkillToolAdapter(skill, executor)
-        val result = adapter.execute("{}")
-
-        assertTrue(result, result.startsWith("Error: skill 'skill_two_step' stopped at step 2/2"))
-        assertTrue(result, result.contains("'fs_write'"))
-        // 断点上下文：最后一段成功输出被带回，模型可从断点换路续跑
-        assertTrue(result, result.contains("step-1 content"))
-        assertTrue(result, result.contains("NOT aborted"))
-        // 失败发生在第 2 步：第 1 步已执行
-        assertEquals(listOf("fs_read", "fs_write"), executor.executed)
-    }
-
-    @Test
-    fun `skill all-steps-success path is unchanged`() = runTest {
-        val executor = FakeExecutor(mapOf("fs_read" to "A", "fs_write" to "B"))
-        val skill = compositeSkill(
-            listOf(
-                SkillStep(tool = "fs_read", args = mapOf("p" to "a.txt")),
-                SkillStep(tool = "fs_write", args = mapOf("p" to "b.txt"))
-            )
-        )
-        val adapter = SkillToolAdapter(skill, executor)
-        assertEquals("B", adapter.execute("{}"))
-    }
 }

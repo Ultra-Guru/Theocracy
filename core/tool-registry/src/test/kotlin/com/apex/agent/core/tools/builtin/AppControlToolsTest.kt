@@ -18,7 +18,7 @@ import org.junit.Test
  *   failures 条数引导语。
  *
  * 不测的（需 Android）：AppNavigationBridge 的 StateFlow 投递、
- * SettingsRepository/McpManager/SkillRegistry/ToolAuditLogger 真实数据面
+ * SettingsRepository/ToolAuditLogger 真实数据面
  * —— 由 app 侧宿主接线，本测试用 fake host 替代（与 AgentSetupToolsTest
  * 同款分层）。
  */
