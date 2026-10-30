@@ -35,12 +35,13 @@ name: Release (Cross-Repo)
 #     全部走 PAT。
 # ═════════════════════════════════════════════════════════════════════════════
 
+# 发布触发：仅显式 tag（v*.*.*）或手动 dispatch。
+# 开发期（Theocracy 拆分阶段）直推 main 不自动发布 —— 稳定后如需
+# 「PR 合并即发版」，把 branches: [main] 加回 push 段即可。
 on:
   push:
-    branches:
-      - main      # PR 合并 / 直推 main → 自动发布
     tags:
-      - 'v*.*.*'  # 手动打 tag → 同样发布（兼容既有习惯）
+      - 'v*.*.*'
   workflow_dispatch: {}
 
 concurrency:
