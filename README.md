@@ -6,7 +6,7 @@
 **An autonomous AI agent that lives entirely on your Android device.**
 
 纯 Android 端自主智能体：OpenAI 兼容流式 LLM 接入、多模式思考引擎、
-真实终端（PRoot Ubuntu 24.04 + 本地宿主 Shell）、Root/Shizuku/无障碍三级权限链、
+真实终端（Android 本地宿主 Shell，真 PTY）、Root/Shizuku/无障碍三级权限链、
 Theocracy Flow 流水渲染 —— 全部跑在一台手机上，无需任何服务器。
 
 **CI · 质量门禁**
@@ -28,14 +28,14 @@ Theocracy 是从 [Android-Guru-Agent](https://github.com/Ultra-Guru/Android-Guru
 维护成本随双模式耦合上升；Theocracy 承载完整的 Agent 能力，成为
 「设备上的自主智能体」单一定位的产品。
 
-原仓库继续作为 **Coding 模式专属软件** 演进（只保留 Ubuntu 环境）；
-Theocracy 保留双环境执行（PRoot Ubuntu + 本地宿主终端）。
+原仓库继续作为 **Coding 模式专属软件** 演进；Theocracy 的终端收束为
+Android 本地宿主 Shell（原 Ubuntu/PRoot 栈已随拆分移除，后续重构）。
 
 ## 核心能力
 
 ### 🧠 思考引擎（完整继承 + 演进）
-- 八档思考深度（AUTO 自适应 → ULTRACODE 深潜）
-- 多执行模式：CHAT / AGENT / BUILD / PLAN / GOAL / LOOP / SPEC / REFLECTION / HUMAN_ASSIST
+- 六档思考深度（AUTO 自适应选档 → MAXIMUM 深潜）
+- 多执行模式：CHAT / AGENT / BUILD / PLAN / GOAL / LOOP / SPEC
 - 上下文压缩（三层混合 + 归档检索）、思考逻辑与提示词工程全量保留
 
 ### 🌊 Theocracy Flow —— 流水渲染 v2
@@ -45,11 +45,9 @@ Theocracy 保留双环境执行（PRoot Ubuntu + 本地宿主终端）。
 - **代码围栏即时终端化**：流式中闭合代码块即刻进入终端卡形态，不等完成态
 - **流速丝带**：气泡底部渐变条宽度映射回复体量，纯布局驱动零动画成本
 
-### 📟 Terminal（原 AndroidShell，更名 + 演进）
-- **真实 PTY 执行**：PRoot 沙箱化 Ubuntu 24.04（apt / git / python / node…）
-- **本地宿主 Shell**：mksh on toybox，零安装即用
-- M³ 控制台视觉 × 多会话 / 环境中心 / 命令历史 / 依赖安装
-- 环境与工作区管理（LinuxWorkspaceManager）
+### 📟 Terminal（原 AndroidShell，更名 + 收束）
+- **本地宿主 Shell**：mksh on toybox，真 PTY（forkpty）执行，零安装即用
+- M³ 控制台视觉 × 多会话 / 环境中心 / 命令历史 / Android 依赖安装
 
 ### 🔐 三级权限链
 Root → Shizuku（ADB 级）→ 无障碍服务，能力递降兜底
@@ -104,7 +102,7 @@ core/
   tool-registry/        # 工具注册表与执行器
   logging/              # 结构化日志
 platform/
-  terminal/             # PRoot Ubuntu + 本地宿主 Shell（proot-binaries / rootfs）
+  terminal/             # Android 本地 Shell（PTY native 热路径 / 多会话 / IPC 服务）
   browser-agent/        # 浏览器代理
   privilege/            # Root / Shizuku / 无障碍
   persistence/          # 持久化基座

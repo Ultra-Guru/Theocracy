@@ -1,13 +1,12 @@
-# AGENTS.md — Android-Guru-Agent 仓库协作规则
+# AGENTS.md — Theocracy 仓库协作规则
 
-> 本文件是仓库自身的规则文件：Coding 模式的 Rules 系统（v1.1 #164）
-> 会自动发现工作区根的 AGENTS.md 并注入会话上下文——把「在这个仓库
-> 干活必须知道的纪律」写在这里，人与 agent 共同遵守。
+> 本文件是仓库自身的规则文件：把「在这个仓库干活必须知道的纪律」
+> 写在这里，人与 agent 共同遵守。
 > 优先级：本文件 > 用户全局规则 > 一般偏好；均低于安全与权限约束。
 
 ## 构建与验证
 
-- **模块**：多模块 Gradle（app / core×6 / platform×6 / 终端双模块），
+- **模块**：多模块 Gradle（app / core×4 / platform×4 / 终端三模块 / 插件 SDK），
   Kotlin 2.3.21 + AGP 8.13.2 + Gradle 8.14 + JDK 17 + Compose BOM 2026.02.00
   （KSP2 2.3.12 / Hilt 2.58 / Room 2.8.5 配套矩阵；液态玻璃 backdrop 保持
   vendored —— 上游 1.0.6 二进制缺 diag-20261011 热修，
@@ -29,8 +28,8 @@
   仪表盘页签 = 观测/干预面板 + 悬浮窗权限引导卡）与悬浮球接线；网页
   自动化插件壳已删除（PluginManager 对旧插件 id 拦截并引导卸载）；
 - **本地验证顺序**：改 core 层先跑对应模块 `test`，改 app 层跑
-  `:app:compileDebugKotlin`；CI（pr 触发）跑静态分析 + app 编译 +
-  9 步测试 + debug APK + 结构质量四门禁；
+  `:app:compileDebugKotlin`；CI（push/PR 触发）跑静态检查 + 全模块单测 +
+  debug APK，Quality Gate 与 Guard Rails 独立把关；
 - **插件体系（Plugin System v2，双类型）**：功能性插件
   （`:plugin-sdk:plugin-host` functional 包）与 APK 插件（PluginManager
   AIDL）统一经 `UnifiedPluginRegistry` 门面；改 functional 包跑
@@ -78,17 +77,16 @@
 ## 提交与 PR 约定
 
 - 提交信息：`类型(范围): 中文摘要 —— 关键词 / 关键词`（例：
-  `feat(coding-mode): 七档思考系统 —— ULTRACODE/APEXCODE/自适应升级`）；
-- PR 描述含验证表（编译/测试/门禁结果）；大特性附 docs/ 文档
-  （本目录有 feature-doc 惯例：一个特性一篇）；
-- PR 由仓库主人合并（agent 只提交不合并）。
+  `feat(theocracy): Agent 模式独立 —— 剥离 Coding/市场/技能/MCP/记忆五域`）；
+- 大特性附 docs/ 文档（本目录有 feature-doc 惯例：一个特性一篇）；
+- 本仓库按用户指示 agent 直接提交 main，每个提交独立过全部门禁。
 
 ## 架构原则
 
-- **薄包装不重写**：模式层（如 CodeAgentEngine）包装共享引擎，
+- **薄包装不重写**：模式层（如 GOAL/LOOP 的协调器）包装共享引擎，
   经 `additionalSystemContext` / `patchConfig` 通道注入行为，不fork
   主循环；
-- **复用层**：skills / MCP / 工具目录 / 思考档位等能力为全模式共享
+- **复用层**：工具目录 / 思考档位 / 提示词模板等能力为全模式共享
   单例，新模式接入走「注入」而非「复制」；
 - **防御式 IO**：外部输入（事件流/JSON/规则文件）任何形状都要吞得
   下——异常折叠为 null/跳过 + AppLogger 留痕，不向上抛；

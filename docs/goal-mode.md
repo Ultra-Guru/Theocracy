@@ -1,7 +1,7 @@
 # Goal 目标模式（v3）
 
 > 一个特性一篇：GOAL 模式的设计、数据流与验证。LOOP 循环模式见
-> [loop-mode.md](loop-mode.md)；作用域隔离见 [scope-isolation.md](scope-isolation.md)。
+> [loop-mode.md](loop-mode.md)。
 
 ## 动机
 

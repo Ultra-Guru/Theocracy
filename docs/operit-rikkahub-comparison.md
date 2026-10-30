@@ -1,7 +1,7 @@
 # Operit × RikkaHub × apex-agent 三方深度对比
 
 > 状态：调研完成（v1）· 对标：AAswordman/Operit（Android 端最完整的 Agent 平台）· rikkahub/rikkahub（多供应商聊天客户端标杆）· 结论：七个能力域落地为本仓库 P9x 系列
-> 前置：[tool-system-v4.md](tool-system-v4.md)（工具渐进披露）· [agent-modes.md](agent-modes.md)（六模式）· [reverse-mcp-host.md](reverse-mcp-host.md)（逆向 MCP Host）
+> 前置：[tool-system-v4.md](tool-system-v4.md)（工具渐进披露）· [agent-modes.md](agent-modes.md)（六模式）
 > 证据基线：三仓库本地源码精读（operit @ 1402 Kotlin 文件 / rikkahub @ 683 / apex-agent @ 1102），本文所有论断均附文件路径证据，未验证的推测明确标注「推测」。
 
 ---
@@ -1036,7 +1036,7 @@ apex：双模块自研
 │ TerminalCore/Utf8…     │   └──────────────────────┘
 └─────────┬─────────────┘
           ▼ TerminalExec/create/run/observe/wait/snapshot
-          ▼ PRoot 沙箱（MCP 暴露，见 mcp-sandbox.md）
+          ▼ PRoot 沙箱（MCP 暴露；该域已随拆分剥离）
 ```
 
 | 轴 | operit | rikkahub | apex |
@@ -1058,8 +1058,9 @@ apex：双模块自研
 
 ### 借鉴
 
-- apex 的 `ubuntu-rootfs-t72.md` / `mcp-sandbox.md` 路线继续走；可补的是 operit 的
-  **SSH/SFTP 作为文件系统**（远程工作区）与**多会话管理**（terminalState.sessions 模型）。
+- operit 的 **SSH/SFTP 作为文件系统**（远程工作区）仍值得借鉴；
+  apex 原走的 Ubuntu rootfs / MCP 沙箱路线已随 Theocracy 域剥离移除；
+  多会话管理已落地（terminalState.sessions 模型）。
 
 ## 4.8 扩展生态
 
@@ -1347,8 +1348,8 @@ createdAt（多次请求渲染稳定）。三个细节都在为「省真金白�
    （`terminal-emulator` 双模块）——operit 靠 submodule、rikkahub 靠 termux-view，apex 是唯一自研。
 2. **cs-mem 仿生记忆**：差分摄取 → 轨迹蒸馏 → FSM 旁路 → 梦境巩固 + Actor 无锁写入
    （`platform/cs-mem`）——写入管线三家中最强，缺的只是检索侧多通道（§4.2 建议）。
-3. **逆向 MCP Host**：把内置工具反暴露给外部 MCP 客户端（`platform/mcp-host` +
-   `docs/reverse-mcp-host.md`）——operit/rikkahub 都是纯客户端。
+3. **逆向 MCP Host**：把内置工具反暴露给外部 MCP 客户端（原 `platform/mcp-host`，
+   MCP 域剥离时移除）——operit/rikkahub 都是纯客户端。
 4. **Tool System v4 渐进激活**：catalog 三元工具 + 64 工具/48KB 预算 + 名称/schema 清洗 +
    请求级自愈降级——比 operit 的 use_package 粒度更细、比 rikkahub 的「全量或无」更精细。
 5. **CI 门禁纪律**：文件预算 + 反模式 + 括号平衡三门禁（`scripts/`）——本次所有落地代码
@@ -1416,7 +1417,7 @@ createdAt（多次请求渲染稳定）。三个细节都在为「省真金白�
 | 角色卡 | `data/model/CharacterCard.kt` / `services/core/MessageCoordinationDelegate.kt` | `data/model/Assistant.kt` / `ui/pages/assistant/detail/AssistantImporter.kt` | `app/.../settings/AgentRole.kt` |
 | 提示词 | `core/config/SystemPromptConfig.kt` | `data/ai/transformers/PlaceholderTransformer.kt` / `TemplateTransformer.kt` | `core/agent-engine/.../engine/EnginePrompts.kt` |
 | 搜索 | （浏览器自动化为主） | `search/src/main/java/me/rerere/search/SearchService.kt` + 19 Service | `core/tool-registry/.../builtin/WebTools.kt` / `app/.../search/mcp/BuiltinSearchMcpTransport.kt` |
-| 终端 | `terminal/`（submodule）+ `OperitTerminalManager` | `workspace/`（PRoot rootfs） | `terminal-emulator/` + `terminal-native/` + `docs/mcp-sandbox.md` |
+| 终端 | `terminal/`（submodule）+ `OperitTerminalManager` | `workspace/`（PRoot rootfs） | `terminal-emulator/` + `terminal-native/` |
 | 测试/CI | `src/test`（158）+ `androidTest`（38） | `src/test`（85）+ `androidTest`（13） | `src/test`（173）+ `scripts/check_*.sh` / `kotlin_balance.py` |
 
 （完）

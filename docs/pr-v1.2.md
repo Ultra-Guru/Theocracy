@@ -93,13 +93,6 @@ AgentEvent 流 → LongTaskTracker（内存聚合+检查点）→ 规模判定
 | kotlin_balance + 嵌套注释词法扫描 | ✅ 全部改动文件 |
 | strings en/zh 对称 | ✅ 130 = 130 键 |
 
-## 文档
-
-- [docs/thinking-levels.md](../thinking-levels.md) — 七档阶梯总表、
-  三层注入架构、AUTO 评分模型、FAQ
-- [docs/long-tasks.md](../long-tasks.md) — 数据流、判定阈值、检查点
-  策略、复制/续跑语义、设计取舍 FAQ
-
 ## 后续（建议 issue）
 
 - Agent 模式（聊天页）接入 LongTaskTracker 与长任务中心（复用同一

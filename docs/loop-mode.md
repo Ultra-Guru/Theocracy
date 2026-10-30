@@ -1,7 +1,7 @@
 # Loop 循环与 Cron 模式（v3）
 
 > 一个特性一篇：LOOP 模式的设计、数据流与验证。GOAL 目标模式见
-> [goal-mode.md](goal-mode.md)；作用域隔离见 [scope-isolation.md](scope-isolation.md)。
+> [goal-mode.md](goal-mode.md)。
 
 ## 动机
 

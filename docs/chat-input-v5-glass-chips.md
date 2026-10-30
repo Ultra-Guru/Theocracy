@@ -2,7 +2,7 @@
 
 > 状态：已实施 · 分支 `feat/stream-glass-chips-multiselect`
 > 用户报告四项：① 流式输出的液态/毛玻璃在 Coding 与 Agent 两模式都没做好；② 部分图标/按钮「消失」；③ Agent 屏新对话与历史对话按钮不见了；④ 函数调用的文案写错了（工具本来就全部默认开启）——以及选技能/MCP 时弹层与输入区 UI 重叠。
-> 前置：[liquid-glass-system.md](liquid-glass-system.md)（玻璃体系）· [hub-ecosystem.md](hub-ecosystem.md)（斜杠管线）· [tool-system-v4.md](tool-system-v4.md)（工具默认开启语义）
+> 前置：[liquid-glass-system.md](liquid-glass-system.md)（玻璃体系）· [tool-system-v4.md](tool-system-v4.md)（工具默认开启语义）
 
 ---
 

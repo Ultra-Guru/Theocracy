@@ -4,8 +4,7 @@
 > 主题：统一插件架构——功能性插件（进程内声明式贡献点，类 coding 平台扩展）
 > 与 APK 插件（独立 APK + AIDL 跨进程代码）双形态共存，统一目录 / 统一
 > 生命周期 / 统一信任边界哲学。
-> 前置：[hub-ecosystem.md](hub-ecosystem.md)（技能 / MCP 仓库生态）
-> · `plugin-sdk/plugin-api`（AIDL 契约）· `plugin-sdk/plugin-host`（宿主运行时）
+> 前置：`plugin-sdk/plugin-api`（AIDL 契约）· `plugin-sdk/plugin-host`（宿主运行时）
 
 ---
 
