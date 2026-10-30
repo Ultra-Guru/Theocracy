@@ -58,7 +58,6 @@ class ToolExecutionPolicy {
             put("code_runner", ToolIdempotencyClass.UNKNOWN)          // 任意代码执行
             put("structure", ToolIdempotencyClass.READ_ONLY)
             put("template", ToolIdempotencyClass.READ_ONLY)
-            put("connector", ToolIdempotencyClass.READ_ONLY)
 
             // ═══ Shell / 系统（高危透传）═══
             put("ShellExecute", ToolIdempotencyClass.UNKNOWN)        // 任意命令：行为不可判定

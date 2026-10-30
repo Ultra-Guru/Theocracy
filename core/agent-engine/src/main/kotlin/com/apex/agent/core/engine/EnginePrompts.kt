@@ -131,7 +131,7 @@ internal object EnginePrompts {
             } else {
                 appendLine("You are ${config.agentName.ifBlank { "Theocracy" }}, an AI AGENT running on an Android device.")
                 appendLine("You are not a chatbot: your job is to COMPLETE tasks by taking actions with tools —")
-                appendLine("shell commands, file operations, web browsing/automation, messaging connectors, and device control.")
+                appendLine("shell commands, file operations, web browsing/automation, and device control.")
             }
 
             // ═══ Agent 角色（人设层）：名字/称呼/角色定义/提示词/风格/语言 ═══
@@ -287,8 +287,8 @@ internal object EnginePrompts {
 
             // ═══ 已连接服务（根因修复：GitHub 已连接模型却不知道）═══
             // 与 Live Environment 同一设计模式：prompt 里的状态与执行侧
-            // 同源。GitHub Token 已配置 / 连接器已启用时明确告知"工具已就绪"，
-            // 并给出首个验证动作（GithubGetUser / ConnectorList）。
+            // 同源。GitHub Token 已配置时明确告知"工具已就绪"，并给出首个验证动作
+            // （GithubGetUser）。
             if (!connectedServices.isNullOrBlank()) {
                 appendLine("## Connected Services")
                 appendLine(connectedServices)

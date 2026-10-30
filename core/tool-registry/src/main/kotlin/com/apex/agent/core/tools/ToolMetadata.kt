@@ -55,7 +55,7 @@ enum class ToolCategory(
     /** MCP server tools (`mcp_*`). */
     MCP("MCP", 130),
 
-    /** GitHub API connector tools (`github_*`). */
+    /** GitHub API tools (`github_*`). */
     GITHUB("GitHub", 140),
 
     /** Hosted plugin tools (`plugin_*`). */

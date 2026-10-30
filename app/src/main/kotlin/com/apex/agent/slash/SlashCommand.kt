@@ -9,7 +9,6 @@ package com.apex.agent.slash
  *     /<type>:<id> [key=value ...] [positional user text ...]
  *
  * Examples:
- *     /connector:google_drive action=open
  *     /plugin:pdf_reader file=/sdcard/a.pdf
  *
  * Parsing is intentionally defensive: a missing colon, an unknown type, or
@@ -23,7 +22,7 @@ package com.apex.agent.slash
  */
 sealed interface SlashCommand {
 
-    /** Stable type tag, e.g. `"connector"`, `"plugin"`. */
+    /** Stable type tag, e.g. `"plugin"`. */
     val type: String
 
     /** Command identifier, e.g. `"github"`. */
@@ -34,15 +33,6 @@ sealed interface SlashCommand {
 
     /** Leftover positional tokens after kv args, e.g. `"Android latest news"`. */
     val userExtra: String
-
-    data class Connector(
-        override val id: String,
-        override val args: Map<String, String> = emptyMap(),
-        override val userExtra: String = ""
-    ) : SlashCommand {
-        override val type: String = TYPE
-        companion object { const val TYPE = "connector" }
-    }
 
     data class Plugin(
         override val id: String,
@@ -70,7 +60,7 @@ sealed interface SlashCommand {
     companion object {
         /** All supported command type prefixes, in slash-menu order. */
         val SUPPORTED_TYPES: List<String> = listOf(
-            Connector.TYPE, Plugin.TYPE
+            Plugin.TYPE
         )
 
         /**
@@ -121,7 +111,6 @@ object SlashCommandParser {
         val (kvArgs, userExtra) = parseArgs(rest)
 
         return when (type) {
-            SlashCommand.Connector.TYPE -> SlashCommand.Connector(id, kvArgs, userExtra)
             SlashCommand.Plugin.TYPE    -> SlashCommand.Plugin(id, kvArgs, userExtra)
             else                        -> SlashCommand.Unknown(raw)
         }

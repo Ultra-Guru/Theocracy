@@ -18,17 +18,16 @@ private val SERVER_FIELD_REGEX = Regex("""(?i)"server"\s*:\s*"([^"]+)"""")
  * 规则（按优先级）：
  * - `McpCall` / `mcp_call_<server>_<tool>` → MCP，并从参数中解析 server；
  * - **元数据优先**（v2）：注册表能查到元数据时按类别直接映射
- *   （GITHUB→GitHub（官方 mark）、HttpRequest→连接器、SKILL/PLUGIN/MCP 同名、
+ *   （GITHUB→GitHub（官方 mark）、SKILL/PLUGIN/MCP 同名、
  *   WEB→搜索/抓取、BROWSER→浏览器自动化）——新工具零改动获得正确分类，
  *   不再依赖 id 前缀启发式；
  * - `WebSearch` → 联网搜索；`WebFetch` → 网页抓取；
  * - `browser_` 前缀 → 浏览器自动化（内置大功能，v1.5.0 起非插件；
  *   元数据缺位时的前缀兜底）；
  * - `plugin*` 前缀 → 插件（plugin-sdk 经 ToolRegistry 注册的工具）；
- * - `github_*` 前缀 → GitHub（官方 mark + 品牌灰，与通用连接器区分）；
- * - `connector*` / `HttpRequest` → 连接器（连接外部服务的 API 调用）；
+ * - `github_*` 前缀 → GitHub（官方 mark + 品牌灰）；
  * - 其余含 "skill" → Skill；
- * - 均未命中但当前处于 Skill/连接器/插件路由上下文 → 归入该上下文来源；
+ * - 均未命中但当前处于 Skill/插件路由上下文 → 归入该上下文来源；
  * - `Terminal` 前缀 → 终端运行时（v3：此前无 TERMINAL 分支，全部回落 LOCAL
  *   徽章 —— 会话/执行/观察工具与普通本地工具无法区分）；
  * - 其余 → 本地工具。
@@ -58,8 +57,6 @@ fun classifyTool(
             ToolCategory.TERMINAL -> ToolKind.TERMINAL
             ToolCategory.WEB -> when (toolName) {
                 "WebSearch" -> ToolKind.WEB_SEARCH
-                "WebFetch" -> ToolKind.WEB_FETCH
-                "HttpRequest" -> ToolKind.CONNECTOR
                 else -> ToolKind.WEB_FETCH
             }
             else -> null
@@ -72,17 +69,14 @@ fun classifyTool(
     // （注册表尚未装载 / 老会话回放）时也能拿到正确徽章。
     if (toolName.startsWith("Browser")) return ToolKind.BROWSER to null
     if (toolName.startsWith("Plugin")) return ToolKind.PLUGIN to null
-    // Github* 前缀 → GITHUB（官方 mark 展示，与通用连接器区分）
+    // Github* 前缀 → GITHUB（官方 mark 展示）
     if (toolName.startsWith("Github")) return ToolKind.GITHUB to null
-    if (toolName.startsWith("Connector") || toolName == "HttpRequest") {
-        return ToolKind.CONNECTOR to null
-    }
     if (toolName.contains("skill", ignoreCase = true)) return ToolKind.SKILL to null
     // v3：Terminal 前缀兑底 —— 元数据未命中（注册表尚未装载 / 老会话回放）时
     // 也能拿到终端徽章（与 Browser/Plugin 前缀兑底同款防御）。
     if (toolName.startsWith("Terminal")) return ToolKind.TERMINAL to null
-    // 路由上下文兜底：Skill/连接器/插件流水线内产生的未匹配工具归入该来源，
-    // 让 `/connector:ssh` 会话里的 ShellExecute 也能带上连接器链路徽章。
+    // 路由上下文兜底：Skill/插件流水线内产生的未匹配工具归入该来源，
+    // 让 `/plugin:xxx` 会话里的 ShellExecute 也能带上插件链路徽章。
     if (contextKind != null) return contextKind to null
     return ToolKind.LOCAL to null
 }

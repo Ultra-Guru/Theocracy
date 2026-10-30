@@ -147,7 +147,7 @@ class LoopDetector(
         val IDEMPOTENT_READ_TOOLS: Set<String> = setOf(
             "AgentProfileList", "AgentSettingGet", "AgentRoleList", "AgentModePresetList",
             "ToolList", "CapabilityReport", "TerminalBackends", "TerminalSnapshot",
-            "McpList", "SkillList", "ConnectorList", "GetDeviceInfo", "Time"
+            "McpList", "SkillList", "GetDeviceInfo", "Time"
         )
     }
 }

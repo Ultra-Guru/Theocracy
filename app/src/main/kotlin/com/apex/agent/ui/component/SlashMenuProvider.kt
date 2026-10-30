@@ -4,9 +4,7 @@ import android.util.Log
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Extension
-import androidx.compose.material.icons.filled.Link
 import androidx.compose.ui.graphics.vector.ImageVector
-import com.apex.agent.core.tools.connector.ConnectorRegistry
 import com.apex.agent.plugin.host.PluginManager
 import com.apex.agent.plugin.host.functional.UnifiedPluginRegistry
 import com.apex.agent.ui.language.LanguageManager
@@ -29,14 +27,16 @@ import javax.inject.Singleton
 /**
  * 斜杠指令菜单的统一数据源
  *
- * 从 PluginManager / ConnectorRegistry 实时聚合菜单数据。
+ * 从 PluginManager 实时聚合菜单数据。
  *
  * - **异步构建**：初始值是空菜单，首次构建放到后台协程。
- * - **变更自动刷新**：聚合各注册表的 changes 流 + 插件 loadedPlugins，
- *   任一变化自动重建（300ms 去抖合并洪峰）。
+ * - **变更自动刷新**：聚合插件 loadedPlugins 流，变化自动重建（300ms 去抖
+ *   合并洪峰）。
  * - **插件发现缓存**：discoverPlugins 是跨进程 IPC + loadLabel 资源加载，
  *   10 秒 TTL 缓存。
- * - **连接器真数据源**：从 [ConnectorRegistry] 读取启用的连接器。
+ *
+ * Theocracy：连接器域（微信/飞书/Telegram 消息连接器）已随 MCP 生态
+ * 剥离 —— 连接器类目整体移除（重新设计后再接回）。
  */
 @OptIn(kotlinx.coroutines.FlowPreview::class)
 @Singleton
@@ -44,7 +44,6 @@ class SlashMenuProvider @Inject constructor(
     private val pluginManager: PluginManager,
     // Plugin System v2：功能性插件的斜杠指令贡献（已激活插件快照）。
     private val unifiedPluginRegistry: UnifiedPluginRegistry,
-    private val connectorRegistry: ConnectorRegistry,
     // i18n：菜单分组/提示文案按当前语言取词（组合外场景）
     private val languageManager: LanguageManager
 ) {
@@ -61,13 +60,6 @@ class SlashMenuProvider @Inject constructor(
     init {
         // 首次构建：后台执行（旧实现在主线程构造期同步跑）
         scope.launch { rebuild() }
-
-        // 聚合连接器注册表的变更流：任一变化 → 重建菜单；
-        // 300ms 去抖把洪峰合并为一次重建。
-        connectorRegistry.changes
-            .debounce(300)
-            .onEach { rebuild() }
-            .launchIn(scope)
 
         // 插件加载/卸载时自动刷新菜单（PluginManager.loadedPlugins 为 StateFlow）
         pluginManager.loadedPlugins
@@ -99,8 +91,7 @@ class SlashMenuProvider @Inject constructor(
     private fun buildMenu(): SlashMenuData {
         return SlashMenuData(
             categories = listOf(
-                buildPluginsCategory(),
-                buildConnectorsCategory()
+                buildPluginsCategory()
             )
         )
     }
@@ -163,26 +154,6 @@ class SlashMenuProvider @Inject constructor(
         }
     }
 
-    // ── 连接器：v2 从 ConnectorRegistry 读取真实数据（含自定义添加），仅展示启用的 ──
-    private fun buildConnectorsCategory(): SlashMenuCategory {
-        val enabled = connectorRegistry.getEnabled()
-        val items = enabled.map { def ->
-            SlashMenuItem(
-                label = def.name,
-                command = "/connector:${def.id} ",
-                description = def.type + if (def.endpoint.isNotBlank()) " · ${def.endpoint}" else "",
-                status = SlashItemStatus.EXTERNAL
-            )
-        }
-        return SlashMenuCategory(
-            id = "connectors",
-            title = languageManager.getString(R.string.chat_slash_connectors),
-            icon = Icons.Default.Link,
-            items = items,
-            hint = if (items.isEmpty()) languageManager.getString(R.string.chat_slash_connectors_empty) else null
-        )
-    }
-
     companion object {
         private const val PLUGIN_CACHE_TTL_MS = 10_000L
     }
@@ -195,7 +166,7 @@ enum class SlashItemStatus {
     CONNECTED,    // 已连接 / 已加载
     OFFLINE,      // 已配置但当前离线
     NOT_INSTALLED,// 未安装 / 未加载
-    EXTERNAL      // 外部服务（连接器）
+    EXTERNAL      // 外部服务（插件包等外部条目）
 }
 
 data class SlashMenuItem(

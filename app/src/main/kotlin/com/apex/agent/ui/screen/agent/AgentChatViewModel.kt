@@ -607,10 +607,10 @@ class AgentChatViewModel @Inject constructor(
     }
 
     /**
-     * 当前斜杠指令触发的流水线上下文（`/skill:xxx` `/connector:xxx` `/plugin:xxx`）。
+     * 当前斜杠指令触发的流水线上下文（`/skill:xxx` `/plugin:xxx`）。
      *
      * 在该流水线的 agent 循环中产生的工具调用会携带对应来源分类与名称，
-     * 便于 UI 区分"这是一个 Skill / 连接器 / 插件调用"。循环结束后清空。
+     * 便于 UI 区分"这是一个 Skill / 插件调用"。循环结束后清空。
      */
     internal var routeContextKind: ToolKind? = null
     internal var routeContextName: String? = null
@@ -658,7 +658,7 @@ class AgentChatViewModel @Inject constructor(
 
         // 取消前一个尚未完成的流式任务
         currentJob?.cancel()
-        // 被取消任务的横幅收尾：若上一轮是 /skill: /connector: /plugin: 流水线且尚未结束，
+        // 被取消任务的横幅收尾：若上一轮是 /skill: /plugin: 流水线且尚未结束，
         // 此处把横幅置为完成态，避免旧横幅永远脉冲在"运行中"。
         finishActiveBanner()
 

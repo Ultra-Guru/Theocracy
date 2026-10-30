@@ -38,7 +38,6 @@ import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Preview
 import androidx.compose.material.icons.filled.Refresh
@@ -127,10 +126,6 @@ internal fun toolKindStyle(kind: ToolKind): ToolKindStyle = when (kind) {
         R.string.chat_toolkind_github, ImageVector.vectorResource(R.drawable.ic_github_mark),
         Color(0xFF6E7681)
     )
-    ToolKind.CONNECTOR -> ToolKindStyle(
-        R.string.chat_toolkind_connector, Icons.Default.Link,
-        Color(0xFF8B5CF6)
-    )
     ToolKind.PLUGIN -> ToolKindStyle(
         R.string.chat_toolkind_plugin, Icons.Default.Extension,
         Color(0xFFF59E0B)
@@ -141,7 +136,7 @@ internal fun toolKindStyle(kind: ToolKind): ToolKindStyle = when (kind) {
         CrownGold
     )
     // v3：终端运行时（Terminal* 工具族）—— 终端图标 + 终端绿（与 PRIMARY 蓝 /
-    // MCP 紫 / 连接器紫 / 插件珀区分），双模式终端的调用一眼可辨。
+    // MCP 紫 / 插件珀区分），双模式终端的调用一眼可辨。
     ToolKind.TERMINAL -> ToolKindStyle(
         R.string.chat_toolkind_terminal, Icons.Default.Terminal,
         Color(0xFF10B981)
@@ -149,7 +144,7 @@ internal fun toolKindStyle(kind: ToolKind): ToolKindStyle = when (kind) {
 }
 
 /**
- * 工具调用来源徽章（图标 + 文字 + 浅色底），用于区分 本地/MCP/搜索/抓取/Skill/连接器/插件。
+ * 工具调用来源徽章（图标 + 文字 + 浅色底），用于区分 本地/MCP/搜索/抓取/Skill/插件。
  */
 @Composable
 internal fun ToolKindBadge(kind: ToolKind, server: String? = null, skill: String? = null) {

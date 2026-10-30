@@ -63,17 +63,17 @@ data class UserInputRequest(
  *
  * 引擎事件本身没有"类型"字段，ViewModel 在 [classifyTool] 中根据
  * toolName 前缀与已知 id 推断。这样用户能一眼区分本地工具 / MCP /
- * 联网搜索 / 网页抓取 / 浏览器自动化 / Skill / GitHub / 连接器 / 插件调用。
+ * 联网搜索 / 网页抓取 / 浏览器自动化 / Skill / GitHub / 插件调用。
  *
- * GITHUB 独立于 CONNECTOR：官方 Octocat mark + GitHub 品牌灰，
- * 与通用连接器（Link 图标 + 紫色）视觉区分。
+ * GITHUB 独立于通用 WEB 族：官方 Octocat mark + GitHub 品牌灰，
+ * 与网页工具（Language 图标）视觉区分。
  *
  * BROWSER 独立于 WEB_FETCH（v1.5.0）：浏览器自动化是内置大功能，
  * globe 图标 + 专属徽章让聊天流里的 browser_* 调用一眼可辨 ——
  * WEB_FETCH 是「抓一个 URL 的文本」，BROWSER 是「在页面里开车」。
  */
 enum class ToolKind {
-    LOCAL, MCP, WEB_SEARCH, WEB_FETCH, BROWSER, SKILL, GITHUB, CONNECTOR, PLUGIN, FUSION,
+    LOCAL, MCP, WEB_SEARCH, WEB_FETCH, BROWSER, SKILL, GITHUB, PLUGIN, FUSION,
     /** 终端运行时（Terminal* 工具族）：ATR 2.0 会话 / 一次性结构化执行。 */
     TERMINAL
 }
@@ -81,15 +81,14 @@ enum class ToolKind {
 /**
  * 待发送的流水线指令（迷你胶囊）。
  *
- * 用户从斜杠菜单选中 Skill / MCP / 插件 / 连接器时，不再把 `/skill:xxx`
+ * 用户从斜杠菜单选中插件时，不再把 `/plugin:xxx`
  * 裸文本塞进输入框，而是以结构化胶囊挂在输入栏上：
- * - 胶囊按类型渲染图标（Skill 用 Material `Code`（即 `</>`）/ MCP 用 Api /
- *   连接器用 Link / 插件用 Extension）与「type: 名称」标签；
+ * - 胶囊按类型渲染图标（插件用 Extension）与「type: 名称」标签；
  * - 发送时与输入框文本拼回 `"/type:id 附加文本"` 走既有斜杠管线
  *   （解析/路由/横幅/工具来源标记全部复用，零新链路）；
  * - 再选一条直接替换当前胶囊（单条语义：一次发送触发一条流水线）。
  *
- * @param type 指令类型（"skill" / "mcp" / "connector" / "plugin" / "fusion"）。
+ * @param type 指令类型（"plugin"）。
  * fusion：王冠菜单选中的 FUSION 体系包（chip 形态出现在输入框中，
  * 发送时拼回 `/fusion:<id>` 走强制使用路由 —— SlashCommandRouter）。
  * @param id 指令 id（斜杠命令冒号后的部分）。
@@ -117,7 +116,7 @@ data class PendingPipelineCommand(
             val type = token.substring(1, colon).lowercase()
             val id = token.substring(colon + 1).trim()
             if (id.isEmpty()) return null
-            if (type !in setOf("skill", "mcp", "connector", "plugin", "fusion")) return null
+            if (type !in setOf("skill", "mcp", "plugin", "fusion")) return null
             return PendingPipelineCommand(type = type, id = id, label = label.ifBlank { id })
         }
     }
@@ -182,8 +181,8 @@ sealed interface AgentUiMessage {
         override val id: String = java.util.UUID.randomUUID().toString()
     ) : AgentUiMessage
     /**
-     * 流水线路由横幅：`/skill:xxx` `/connector:xxx` `/plugin:xxx` 斜杠指令触发时展示，
-     * 让用户一眼看出"当前正在执行哪条流水线"（Skill / 连接器 / 插件），
+     * 流水线路由横幅：`/skill:xxx` `/plugin:xxx` 斜杠指令触发时展示，
+     * 让用户一眼看出"当前正在执行哪条流水线"（Skill / 插件），
      * 并为其后同来源的工具调用提供上下文。
      *
      * [finishedAt] 非 null 表示本次执行已收尾（横幅停止脉冲、显示耗时）。

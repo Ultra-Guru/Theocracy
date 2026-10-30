@@ -6,7 +6,6 @@
     <string name="market_tab_plugins">插件</string>
     <string name="market_tab_skills">Skills</string>
     <string name="market_tab_mcp">MCP</string>
-    <string name="market_tab_connectors">连接器</string>
     <string name="market_tab_integrations">集成</string>
     <string name="market_scope_browse">市场</string>
     <string name="market_scope_installed">已安装管理</string>
@@ -91,11 +90,6 @@
     <string name="market_mcp_choose_file">选择文件</string>
     <string name="market_mcp_manage_hint">已添加的 MCP 工具源在「已安装管理 · MCP」中连接 / 断开 / 启停 / 删除。</string>
 
-    <!-- ═══ 市场 · 连接器 ═══ -->
-    <string name="market_connectors_header">连接器 = 对外部服务（API/SSH/数据库/网盘）的访问配置。启用的连接器出现在 / 菜单（/connector:&lt;id&gt;）。</string>
-    <string name="market_connectors_add_title">添加连接器</string>
-    <string name="market_connectors_add_desc">登记 id / 名称 / 类型 / 端点，保存后即可在对话中以 /connector:&lt;id&gt; 调用。</string>
-    <string name="market_connectors_manage_hint">已有连接器的启停与删除在「已安装管理 · 连接器」。</string>
 
     <!-- ═══ 市场 · 集成（魔搭 + GitHub）═══ -->
     <string name="market_modelscope_title">魔搭 ModelScope Skills（官方 modelscope-skills 仓库）</string>
@@ -154,13 +148,6 @@
     <string name="market_delete_mcp_title">删除 MCP 服务器</string>
     <string name="market_delete_mcp_text">删除「%1$s」的配置？活跃连接将被断开。</string>
 
-    <!-- ═══ 已安装管理 · 连接器 ═══ -->
-    <string name="market_installed_connectors_empty">无连接器 —— 到「市场」添加外部服务访问配置</string>
-    <string name="market_installed_connectors_empty_short">无连接器</string>
-    <string name="market_installed_connectors_header">启用的连接器出现在 / 菜单（/connector:&lt;id&gt;）。内置示例删除后重启恢复。</string>
-    <string name="market_delete_connector_title">删除连接器</string>
-    <string name="market_delete_connector_text">删除「%1$s」？</string>
-    <string name="market_delete_connector_builtin_suffix">（内置示例，重启后恢复）</string>
 
     <!-- ═══ 已安装管理 · 集成 ═══ -->
     <string name="market_installed_integrations_empty">尚未从远程仓库（魔搭 / GitHub / ClawHub）安装技能 —— 到「市场」浏览并安装</string>
@@ -204,12 +191,6 @@
     <string name="market_mcp_paste_body">支持 Claude Desktop / Cursor / Cline / Operit 通用格式：含 command 的条目按本地命令安装，含 url 的按远端安装；无法判定的条目会逐条报原因。</string>
     <string name="market_mcp_parse_import">解析并导入</string>
 
-    <!-- ═══ 对话框 · 添加连接器 ═══ -->
-    <string name="market_connector_id_label">id（如 my_api，用于 /connector:&lt;id&gt;）</string>
-    <string name="market_connector_id_invalid">只允许字母/数字/._-</string>
-    <string name="market_connector_name_label">显示名（如 我的服务）</string>
-    <string name="market_connector_type_label">类型</string>
-    <string name="market_connector_endpoint_label">端点（URL / host，可选）</string>
 
     <!-- ═══ 对话框 · Skill JSON / URL / GitHub ═══ -->
     <string name="market_skill_json_title">导入 Skill JSON</string>
@@ -293,8 +274,6 @@
     <string name="market_connect_failed">连接失败：%1$s</string>
     <string name="market_mcp_disconnected">已断开：%1$s</string>
     <string name="market_mcp_removed">已删除 MCP 服务器：%1$s</string>
-    <string name="market_connector_added">已添加连接器：%1$s（/ 菜单与 /connector:%1$s 可用）</string>
-    <string name="market_connector_removed">已删除连接器：%1$s</string>
     <string name="market_plugin_load_requested">插件加载请求已发出：%1$s</string>
     <string name="market_plugin_unloaded">已卸载插件：%1$s</string>
     <string name="market_modelscope_install_failed">魔搭安装失败：%1$s</string>

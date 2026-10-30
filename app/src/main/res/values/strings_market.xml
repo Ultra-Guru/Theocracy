@@ -6,7 +6,6 @@
     <string name="market_tab_plugins">Plugins</string>
     <string name="market_tab_skills">Skills</string>
     <string name="market_tab_mcp">MCP</string>
-    <string name="market_tab_connectors">Connectors</string>
     <string name="market_tab_integrations">Integrations</string>
     <string name="market_scope_browse">Market</string>
     <string name="market_scope_installed">Installed</string>
@@ -91,11 +90,6 @@
     <string name="market_mcp_choose_file">Choose file</string>
     <string name="market_mcp_manage_hint">Added MCP tool sources are managed (connect / disconnect / toggle / delete) under \u201CInstalled \u00B7 MCP\u201D.</string>
 
-    <!-- ═══ Browse · Connectors ═══ -->
-    <string name="market_connectors_header">A connector = access configuration for an external service (API/SSH/database/cloud drive). Enabled connectors appear in the / menu (/connector:&lt;id&gt;).</string>
-    <string name="market_connectors_add_title">Add connector</string>
-    <string name="market_connectors_add_desc">Register id / name / type / endpoint; after saving, invoke it in conversations via /connector:&lt;id&gt;.</string>
-    <string name="market_connectors_manage_hint">Enable/disable and delete existing connectors under \u201CInstalled \u00B7 Connectors\u201D.</string>
 
     <!-- ═══ Browse · Integrations (ModelScope + GitHub) ═══ -->
     <string name="market_modelscope_title">ModelScope Skills (official modelscope-skills repository)</string>
@@ -154,13 +148,6 @@
     <string name="market_delete_mcp_title">Delete MCP server</string>
     <string name="market_delete_mcp_text">Delete the configuration of \u201C%1$s\u201D? Active connections will be closed.</string>
 
-    <!-- ═══ Installed · Connectors ═══ -->
-    <string name="market_installed_connectors_empty">No connectors \u2014 add external service access configs in \u201CMarket\u201D</string>
-    <string name="market_installed_connectors_empty_short">No connectors</string>
-    <string name="market_installed_connectors_header">Enabled connectors appear in the / menu (/connector:&lt;id&gt;). Built-in samples are restored after restart if deleted.</string>
-    <string name="market_delete_connector_title">Delete connector</string>
-    <string name="market_delete_connector_text">Delete \u201C%1$s\u201D?</string>
-    <string name="market_delete_connector_builtin_suffix"> (built-in sample, restored after restart)</string>
 
     <!-- ═══ Installed · Integrations ═══ -->
     <string name="market_installed_integrations_empty">No skills installed from remote repositories (ModelScope / GitHub / ClawHub) yet \u2014 browse and install from \u201CMarket\u201D</string>
@@ -204,12 +191,6 @@
     <string name="market_mcp_paste_body">Supports the common Claude Desktop / Cursor / Cline / Operit format: entries with command are installed as local commands, entries with url as remote; undecidable entries report their reasons one by one.</string>
     <string name="market_mcp_parse_import">Parse &amp; import</string>
 
-    <!-- ═══ Dialogs · Add connector ═══ -->
-    <string name="market_connector_id_label">id (e.g. my_api, used as /connector:&lt;id&gt;)</string>
-    <string name="market_connector_id_invalid">Only letters/digits/._- allowed</string>
-    <string name="market_connector_name_label">Display name (e.g. My service)</string>
-    <string name="market_connector_type_label">Type</string>
-    <string name="market_connector_endpoint_label">Endpoint (URL / host, optional)</string>
 
     <!-- ═══ Dialogs · Skill JSON / URL / GitHub ═══ -->
     <string name="market_skill_json_title">Import Skill JSON</string>
@@ -293,8 +274,6 @@
     <string name="market_connect_failed">Connection failed: %1$s</string>
     <string name="market_mcp_disconnected">Disconnected: %1$s</string>
     <string name="market_mcp_removed">MCP server removed: %1$s</string>
-    <string name="market_connector_added">Connector added: %1$s (available in the / menu and as /connector:%1$s)</string>
-    <string name="market_connector_removed">Connector removed: %1$s</string>
     <string name="market_plugin_load_requested">Plugin load requested: %1$s</string>
     <string name="market_plugin_unloaded">Plugin unloaded: %1$s</string>
     <string name="market_modelscope_install_failed">ModelScope install failed: %1$s</string>

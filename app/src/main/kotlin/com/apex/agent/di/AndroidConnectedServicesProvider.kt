@@ -1,7 +1,6 @@
 package com.apex.agent.di
 
 import com.apex.agent.core.engine.ConnectedServicesProvider
-import com.apex.agent.core.tools.connector.ConnectorRegistry
 import com.apex.agent.github.GithubTokenManager
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -15,13 +14,11 @@ import javax.inject.Singleton
  *   沙箱内 git clone/push 亦可用凭据 —— 用户核心诉求「确保 agent 会主动
  *   利用这个方式调用 GitHub，他要能知道自己能够使用」）；未配置 → 一行
  *   可行动指引 —— 9 个 github_* 工具在 ToolModule
- *   无条件注册、工具目录里始终可见，沉默会让 agent 撞工具报错才知未连；
- * - 消息连接器：微信 / 飞书 / Telegram 已启用且配置凭据 → 告知
- *   ConnectorList / ConnectorSendMessage 可用。
+ *   无条件注册、工具目录里始终可见，沉默会让 agent 撞工具报错才知未连。
  *
  * 设计要点：
- * - 只读快照，无 IO（TokenManager / ConnectorRegistry 均为内存 + 本地
- *   存储）；引擎每轮 buildSystemPrompt 调用一次，开销可忽略。
+ * - 只读快照，无 IO（TokenManager 为内存 + 本地存储）；引擎每轮
+ *   buildSystemPrompt 调用一次，开销可忽略。
  * - 除 GitHub 外未连接服务仍**不注入**（与 Live Environment 的 fail-open
  *   一致：不知道的不说，避免教模型一个错误事实）—— GitHub 是唯一例外：
  *   其工具恒注册在场（见上），未连接一行指引比沉默更诚实。未连接时模型
@@ -29,12 +26,12 @@ import javax.inject.Singleton
  *   两处文案指向同一入口。
  *
  * Theocracy：MCP 域已剥离 —— McpToolRegistrar 快照源与 MCP 一等工具
- * 并入逻辑整体移除（MCP 重新设计后再接回）。
+ * 并入逻辑整体移除（MCP 重新设计后再接回）；消息连接器域（微信/飞书/
+ * Telegram）随 MCP 生态一并剥离。
  */
 @Singleton
 class AndroidConnectedServicesProvider @Inject constructor(
-    private val githubTokenManager: GithubTokenManager,
-    private val connectorRegistry: ConnectorRegistry
+    private val githubTokenManager: GithubTokenManager
 ) : ConnectedServicesProvider {
 
     override fun connectedServicesSummary(): String? {
@@ -64,23 +61,6 @@ class AndroidConnectedServicesProvider @Inject constructor(
                 "GitHub: NOT connected — ask the user to tap the GitHub icon on the " +
                     "Coding toolbar to add a PAT (Settings → GitHub also works)."
             )
-        }
-
-        // ═══ 消息 / 服务连接器（微信 / 飞书 / Telegram / 自定义）═══
-        val enabled = connectorRegistry.getEnabled()
-        if (enabled.isNotEmpty()) {
-            val ready = enabled.filter { !it.apiKey.isNullOrBlank() || it.endpoint.isNotBlank() }
-            if (ready.isNotEmpty()) {
-                val lines = ready.joinToString("\n") { def ->
-                    val credState = if (def.apiKey.isNullOrBlank()) "endpoint-only" else "configured"
-                    "  - ${def.id} (${def.name}) [$credState]"
-                }
-                sections.add(
-                    "Messaging/service connectors (ENABLED):\n$lines\n" +
-                        "  Call ConnectorList to see live status; send messages with\n" +
-                        "  ConnectorSendMessage (WeChat Work bot / Feishu bot / Telegram bot)."
-                )
-            }
         }
 
         if (sections.isEmpty()) return null

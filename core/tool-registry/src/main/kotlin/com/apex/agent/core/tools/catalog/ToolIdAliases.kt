@@ -149,10 +149,6 @@ object ToolIdAliases {
 
         "code_write" to "CodeWrite",
 
-        "connector_list" to "ConnectorList",
-
-        "connector_send_message" to "ConnectorSendMessage",
-
         "contact_search" to "ContactSearch",
 
         "context_recap" to "ContextRecap",

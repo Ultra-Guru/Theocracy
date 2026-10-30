@@ -26,7 +26,6 @@ import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
@@ -63,9 +62,9 @@ import com.apex.agent.ui.icons.CrownGold
 import com.apex.agent.ui.icons.FusionCrown
 
 /**
- * 流水线路由横幅：`/skill:xxx` `/connector:xxx` `/plugin:xxx` 触发时的专用卡片。
+ * 流水线路由横幅：`/skill:xxx` `/plugin:xxx` 触发时的专用卡片。
  *
- * 与工具卡片同色系（Skill=primary+AutoAwesome / 连接器=紫+Link / 插件=琥珀+Extension），
+ * 与工具卡片同色系（Skill=primary+AutoAwesome / 插件=琥珀+Extension），
  * 运行中右侧脉冲圆点表示 Agent 循环仍在运行；完成后变为对勾并显示总耗时，
  * 其后同来源的工具调用会以对应来源徽章展示，形成完整的执行链路视觉。
  */
@@ -74,11 +73,6 @@ internal fun PipelineBannerCard(banner: AgentUiMessage.PipelineBanner) {
     val finished = banner.finishedAt != null
     // i18n：标签改持 @StringRes，组合内 stringResource 取词
     val style: Triple<Int, ImageVector, Color> = when (banner.kind) {
-        ToolKind.CONNECTOR -> Triple(
-            R.string.chat_pipeline_calling_connector,
-            Icons.Default.Link,
-            Color(0xFF8B5CF6)
-        )
         ToolKind.PLUGIN -> Triple(
             R.string.chat_pipeline_calling_plugin,
             Icons.Default.Extension,
@@ -98,7 +92,6 @@ internal fun PipelineBannerCard(banner: AgentUiMessage.PipelineBanner) {
     }
     val (runningLabelRes, icon, color) = style
     val title = when {
-        finished && banner.kind == ToolKind.CONNECTOR -> stringResource(R.string.chat_pipeline_connector_done)
         finished && banner.kind == ToolKind.PLUGIN -> stringResource(R.string.chat_pipeline_plugin_done)
         finished && banner.kind == ToolKind.FUSION -> stringResource(R.string.chat_pipeline_fusion_done)
         finished -> stringResource(R.string.chat_pipeline_skill_done)

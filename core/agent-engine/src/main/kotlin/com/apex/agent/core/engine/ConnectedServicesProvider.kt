@@ -5,7 +5,7 @@ package com.apex.agent.core.engine
  *
  * ## 为什么需要它（根因修复）
  *
- * 修复前，GitHub Token 已配置 / 连接器已启用时，模型完全不知道：
+ * 修复前，GitHub Token 已配置时，模型完全不知道：
  * 工具清单里 7 个 github_* 工具混在 106 个工具中，描述被截断到 160 字符，
  * 模型无从判断"GitHub 已连接、现在就能用"，于是从不主动调用（用户反馈
  * "GitHub 连接没有作用"）。未连接时更要命：模型调用后拿到"未连接"错误，
@@ -16,7 +16,6 @@ package com.apex.agent.core.engine
  * ToolEnvironmentState 的 fail-open 哲学一致：知道的一定说，不知道的
  * 不猜。App 层实现（AndroidConnectedServicesProvider）聚合：
  * - GitHub：是否连接 + 登录名（引导用 GithubGetUser 验证）
- * - 连接器：启用的微信/飞书/Telegram 等（引导用 ConnectorList / ConnectorSendMessage）
  *
  * 引擎侧仅消费 [connectedServicesSummary] 的字符串，保持 core 模块
  * 零 Android 依赖（实现类在 app 模块，经 Hilt 注入）。
@@ -31,8 +30,6 @@ interface ConnectedServicesProvider {
      * ```
      * GitHub: CONNECTED as octocat — github_* tools are ready.
      *   Verify anytime with GithubGetUser; list repos with GithubListRepos.
-     * Messaging connectors: feishu (configured), telegram (configured).
-     *   Use ConnectorList then ConnectorSendMessage to send messages.
      * ```
      */
     fun connectedServicesSummary(): String?

@@ -4,9 +4,9 @@ import com.apex.agent.plugin.host.functional.FunctionalSlashCommand
 
 /**
  * Runtime context the [SlashCommandRouter] consults to decide how a command
- * should be routed. Currently GitHub connection state and functional plugin
- * slash commands (Plugin System v2) are needed, but the shape is extensible:
- * future connectors / plugins plug in by adding fields here.
+ * should be routed. Currently functional plugin slash commands (Plugin
+ * System v2) are needed, but the shape is extensible: future command types
+ * plug in by adding fields here.
  *
  * The context is a small immutable value object so routing stays pure and
  * unit-testable — the ViewModel snapshots connection state at dispatch time
@@ -37,7 +37,7 @@ data class SlashRouteContext(
  * The UI/system artifacts produced by routing a parsed [SlashCommand]:
  *
  * - [systemMessage]: a single human-readable status line appended to the
- *   chat as an `AgentUiMessage.System` bubble (e.g. `"🔗 使用连接器: github"`).
+ *   chat as an `AgentUiMessage.System` bubble (e.g. `"📦 插件: xxx"`).
  * - [agentPrompt]: the prompt handed to `AgentEngine.execute(...)` so the
  *   LLM can act on the command, including parsed args + user extra text.
  */
@@ -45,11 +45,11 @@ data class SlashCommandRoute(
     val systemMessage: String,
     val agentPrompt: String,
     /**
-     * 路由来源类别："connector" / "plugin"，null 表示普通指令。
+     * 路由来源类别："plugin"，null 表示普通指令。
      * 与 [sourceName] 一起供 UI 渲染流水线横幅与后续工具调用的来源徽章。
      */
     val routeKind: String? = null,
-    /** 路由来源名称（指令 id）：连接器 / 插件指令均有值。 */
+    /** 路由来源名称（指令 id）：插件指令均有值。 */
     val sourceName: String? = null
 )
 
@@ -58,7 +58,7 @@ data class SlashCommandRoute(
  * supplied [SlashRouteContext] for commands that depend on live connection
  * state.
  *
- * The known command types (Connector / Plugin) share the same prompt
+ * The known command types (Plugin) share the same prompt
  * skeleton — only the verb and tool hint differ — so they are built by
  * [buildAgentPrompt]. Unknown commands forward the raw text to the agent
  * verbatim so the user's intent is never silently dropped.
@@ -87,15 +87,6 @@ object SlashCommandRouter {
         command: SlashCommand,
         context: SlashRouteContext = SlashRouteContext.Empty
     ): SlashCommandRoute = when (command) {
-        is SlashCommand.Connector -> SlashCommandRoute(
-            systemMessage = "🔗 使用连接器: ${command.id}",
-            agentPrompt = command.buildAgentPrompt(
-                verb = "请根据此指令执行对应操作，通过 connector 工具执行",
-                toolHint = "connector"
-            ),
-            routeKind = "connector",
-            sourceName = command.id
-        )
         is SlashCommand.Plugin -> routePlugin(command, context)
         is SlashCommand.Unknown -> SlashCommandRoute(
             systemMessage = "⚡ 指令: ${command.raw.trim()}",

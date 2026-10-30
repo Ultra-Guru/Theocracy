@@ -10,36 +10,22 @@ import org.junit.Test
  * Unit tests for [SlashCommandRouter].
  *
  * Covers:
- * - The four generic command types (Skill / Mcp-other / Connector / Plugin)
- *   produce the expected system-message prefix and an agent prompt that
- *   embeds args + user extra.
- * - `/mcp:github` is the special case: with a connected context it emits a
- *   prompt that explicitly enumerates the `github_*` tool IDs; with a
- *   disconnected context it short-circuits to `requestGithubConnect = true`
- *   and an empty agent prompt.
+ * - Plugin command types produce the expected system-message prefix and an
+ *   agent prompt that embeds args + user extra.
  * - Unknown commands forward the raw text verbatim.
- * - `/logic:<mode>`（v1.5 双思考逻辑）是本地路由命令：只产引导性系统消息
- *   且 agentPrompt 恒为空（Coding 屏在路由前截获执行；Agent 屏走到此处
- *   只展示引导不进引擎）。
  * - Plugin System v2：`/plugin:<id>` 命中功能性插件指令快照时注入插件声
  *   明的定制 prompt；未命中 / 空 prompt / 旧调用方不携带快照时既有通用
  *   插件路由零回归。
+ *
+ * Theocracy：connector / skill / mcp / logic / fusion 命令类型已随五域
+ * 剥离移除（Skill 路由的 emit 流水线、MCP 连接门控、连接器路由均不再
+ * 存在），此处只保留现存路由面的回归。
  */
 class SlashCommandRouterTest {
 
     // ═══════════════════════════════════════════════════════════
     // Generic command types
     // ═══════════════════════════════════════════════════════════
-
-    @Test
-    fun `Connector route has connector emoji and generic prompt`() {
-        val cmd = SlashCommand.Connector(id = "ssh", args = mapOf("host" to "1.2.3.4"))
-        val route = SlashCommandRouter.route(cmd)
-
-        assertEquals("🔗 使用连接器: ssh", route.systemMessage)
-        assertTrue(route.agentPrompt.contains("/connector:ssh"))
-        assertTrue(route.agentPrompt.contains("host=1.2.3.4"))
-    }
 
     @Test
     fun `Plugin route has plugin emoji and registered-tools status`() {
@@ -52,6 +38,53 @@ class SlashCommandRouterTest {
         assertTrue(route.agentPrompt.contains("/plugin:pdf_reader"))
         assertTrue(route.agentPrompt.contains("已注册进 ToolRegistry"))
         assertFalse(route.agentPrompt.contains("尚未接线"))
+    }
+
+    @Test
+    fun `Plugin route forwards args and user extra into prompt`() {
+        val cmd = SlashCommand.Plugin(
+            id = "pdf_reader",
+            args = mapOf("file" to "/sdcard/a.pdf"),
+            userExtra = "summarize page 3"
+        )
+        val route = SlashCommandRouter.route(cmd)
+
+        assertTrue(route.agentPrompt.contains("/plugin:pdf_reader"))
+        assertTrue(route.agentPrompt.contains("file=/sdcard/a.pdf"))
+        assertTrue(route.agentPrompt.contains("用户附加要求: summarize page 3"))
+    }
+
+    @Test
+    fun `Plugin route carries plugin routeKind and source name for pipeline badge`() {
+        // routeKind/sourceName 是流水线横幅与来源徽章的数据源。
+        val cmd = SlashCommand.Plugin(id = "pdf_reader")
+        val route = SlashCommandRouter.route(cmd)
+
+        assertEquals("plugin", route.routeKind)
+        assertEquals("pdf_reader", route.sourceName)
+    }
+
+    @Test
+    fun `Unknown route forwards raw text verbatim to agent`() {
+        val cmd = SlashCommand.Unknown(raw = "/help")
+        val route = SlashCommandRouter.route(cmd)
+
+        assertEquals("⚡ 指令: /help", route.systemMessage)
+        assertEquals("/help", route.agentPrompt)
+        // 普通指令不携带流水线元数据（无横幅）。
+        assertEquals(null, route.routeKind)
+        assertEquals(null, route.sourceName)
+    }
+
+    @Test
+    fun `removed domain command types degrade to Unknown routing`() {
+        // 五域剥离后这些类型不再有专属路由 —— 解析层已降级为 Unknown，
+        // 路由层对 Unknown 一律原文透传，不产生误导性的专属提示词。
+        val parsed = SlashCommand.Unknown(raw = "/connector:ssh")
+        val route = SlashCommandRouter.route(parsed)
+
+        assertEquals("/connector:ssh", route.agentPrompt)
+        assertEquals(null, route.routeKind)
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -127,28 +160,5 @@ class SlashCommandRouterTest {
         // 未命中（id 是 APK 包名）：既有通用路由零回归。
         assertEquals("📦 插件: com.apex.agent.plugin.workflow（工具已注册进 Agent 工具表）", route.systemMessage)
         assertTrue(route.agentPrompt.contains("已注册进 ToolRegistry"))
-    }
-
-    @Test
-    fun `Unknown route forwards raw text verbatim to agent`() {
-        val cmd = SlashCommand.Unknown(raw = "/help")
-        val route = SlashCommandRouter.route(cmd)
-
-        assertEquals("⚡ 指令: /help", route.systemMessage)
-        assertEquals("/help", route.agentPrompt)
-    }
-
-    // ═══════════════════════════════════════════════════════════
-    // Default context backward-compat
-    // ═══════════════════════════════════════════════════════════
-
-    @Test
-    fun `route without explicit context still routes connector generically`() {
-        // Theocracy：skill / mcp / fusion 命令域已剥离 —— 默认上下文行为
-        // 由 Connector（无状态依赖的通用类型）承载断言。
-        val cmd = SlashCommand.Connector(id = "ssh")
-        val route = SlashCommandRouter.route(cmd)
-
-        assertTrue(route.agentPrompt.contains("/connector:ssh"))
     }
 }

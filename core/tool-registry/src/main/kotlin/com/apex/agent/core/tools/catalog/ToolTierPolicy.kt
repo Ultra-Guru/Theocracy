@@ -43,8 +43,7 @@ object ToolTierPolicy {
      *
      * Selection criteria:
      * 1. Covers the agent's headline capabilities (ask / files / web /
-     *    terminal / memory / apps / device / MCP / skills / connectors /
-     *    browser automation);
+     *    terminal / apps / device / browser automation);
      * 2. Each is individually useful without prior setup;
      * 3. Total schema payload stays ~20 KB — safe for every provider.
      */
@@ -99,8 +98,8 @@ object ToolTierPolicy {
         // ── MCP (first-class tools register as mcp__server__tool) ──
         "McpList", "McpConnect", "McpCall",
 
-        // ── skills & connectors ──
-        "SkillList", "SkillSearch", "ConnectorList",
+        // ── skills ──
+        "SkillList", "SkillSearch",
 
         // ── catalog meta-tools (v4) ──
         "ToolSearch", "ToolOpen", "ToolList",

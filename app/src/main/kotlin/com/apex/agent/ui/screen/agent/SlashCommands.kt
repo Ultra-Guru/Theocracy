@@ -9,7 +9,7 @@ import com.apex.agent.slash.SlashRouteContext
 /**
  * 斜杠指令的纯解析/路由执行器（从 [AgentChatViewModel.handleSlashCommand] 抽出）。
  *
- * 解析格式：`/connector:xxx [key=value ...] 附加的用户要求...`
+ * 解析格式：`/plugin:xxx [key=value ...] 附加的用户要求...`
  *
  * 解析与路由职责已下沉到 [SlashCommandParser] + [SlashCommandRouter]，
  * 本对象只负责：
@@ -97,9 +97,8 @@ internal object SlashCommands {
         )
     }
 
-    /** 路由类别字符串 → [ToolKind]（未知类别归为 PLUGIN 展示）。 */
+    /** 路由类别字符串 → [ToolKind]（当前仅 plugin 一类，未知类别归为 PLUGIN 展示）。 */
     private fun kindOf(routeKind: String?): ToolKind = when (routeKind) {
-        "connector" -> ToolKind.CONNECTOR
         else -> ToolKind.PLUGIN
     }
 }

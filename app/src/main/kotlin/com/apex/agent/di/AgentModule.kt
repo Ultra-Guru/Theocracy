@@ -207,8 +207,8 @@ object AgentModule {
         contextCompressor: ContextCompressor,
         privilegeInfoProvider: PrivilegeInfoProvider,
         environmentInfoProvider: EnvironmentInfoProvider,
-        // 根因修复：已连接服务（GitHub/连接器）注入系统提示词，模型才知道
-        // github_* / connector_* 工具已就绪可主动使用
+        // 根因修复：已连接服务（GitHub）注入系统提示词，模型才知道
+        // github_* 工具已就绪可主动使用
         connectedServicesProvider: AndroidConnectedServicesProvider,
         // T72：注入多模型运行时，按角色路由 PRIMARY/VISION/REASONING/SUMMARY
         modelRuntime: ModelRuntime,

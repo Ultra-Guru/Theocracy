@@ -8,8 +8,6 @@ import com.apex.agent.core.tools.catalog.ToolActivationStore
 import com.apex.agent.core.tools.catalog.ToolListTool
 import com.apex.agent.core.tools.catalog.ToolOpenTool
 import com.apex.agent.core.tools.catalog.ToolSearchTool
-import com.apex.agent.core.tools.connector.ConnectorMessenger
-import com.apex.agent.core.tools.connector.ConnectorRegistry
 import com.apex.agent.github.GithubApiService
 import com.apex.agent.github.GithubTokenManager
 import com.apex.agent.github.tools.*
@@ -438,8 +436,6 @@ object ToolModule {
         traceRecorder: ToolTraceRecorder,
         circuitBreaker: ToolCircuitBreaker,
         shortcutRegistry: ShortcutRegistry,
-        // 消息连接器（微信/飞书/Telegram）：注册表 + 发送器，注册 connector_* 工具
-        connectorRegistry: ConnectorRegistry,
         // v0.2 #147：子代理引擎工厂的共享单例集（每次 CodeTask 构造全新
         // ApexAgentEngine 实例，隔离上下文；依赖均为无环叶子见各 Module）
         llmClient: LlmClient,
@@ -787,15 +783,7 @@ object ToolModule {
         // ═══ 11. GitHub (9，无条件注册) —— 注册体拆至 ToolModuleRegistrySections.kt（同上 SRP 预算）═══
         registerGithubTools(registry, githubApiService)
 
-        // ═══ 11b. 消息连接器（微信/飞书/Telegram，2 个工具）═══
-        // ConnectorList：列出启用的连接器与凭据状态；ConnectorSendMessage：
-        // 经企业微信机器人/飞书机器人/Telegram Bot 发送文本消息。
-        // 与 Connected Services 段（系统提示词）联动：模型知道已连接后即可主动使用。
-        val connectorMessenger = ConnectorMessenger(httpClient)
-        registry.register(SafeAgentTool(ConnectorListTool(connectorRegistry)))
-        registry.register(SafeAgentTool(ConnectorSendMessageTool(connectorRegistry, connectorMessenger)))
-
-        // ═══ 11c. 加密剪切板金库（#167，4 个工具）═══
+        // ═══ 11b. 加密剪切板金库（#167，4 个工具）═══
         // 安全契约：Agent 只见标签与备注 —— VaultList 输出脱敏快照；
         // VaultSave write-only（成功返回仅 label+id，写完自己也读不回）；
         // VaultPaste 三通道直投（clipboard/terminal/http），返回仅字节数/
@@ -925,7 +913,6 @@ object ToolModule {
         // 4 T76 + 5 Skill 管理 + 3 v3 新工具（wait/JsonTransformLegacy/VersionCompare）+
         // 4 v3 编排工具（ToolBatchRun + ShortcutDefine/list/run）+
         // N 已启用技能 composite + 9 GitHub（无条件注册，未连接时返回明确错误引导）+
-        // 2 消息连接器（ConnectorList / ConnectorSendMessage：微信/飞书/Telegram）+
         // 4 金库工具（VaultList/save/paste/delete：#167 加密剪切板金库，Agent 只见标签不见明文）+
         // v5（#171+#172）：4 合并工具（time/random/regex/json，旧 10 个 id 转 legacy alias
         // 仍注册不下发）+ 3 上下文回顾（ContextRecap/ContextSearch/SessionStats）+

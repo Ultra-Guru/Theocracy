@@ -12,28 +12,17 @@ import org.junit.Test
  * colon, empty id, unknown type, malformed kv tokens). The parser is pure
  * JVM so the tests run without an Android or Compose runtime.
  *
- * Theocracy：skill / mcp / fusion 命令域已剥离（重新设计后再接回）——
- * 现存类型 Connector / Plugin；语法与降级测试改用 connector 载体。
+ * Theocracy：skill / mcp / connector / logic / fusion 命令类型已随五域
+ * 剥离移除，当前唯一结构化类型是 plugin（APK 插件 / 功能性插件指令）。
  */
 class SlashCommandParserTest {
 
     // ═══════════════════════════════════════════════════════════
-    // Happy paths — one per known command type
+    // Happy paths — known command type
     // ═══════════════════════════════════════════════════════════
 
     @Test
-    fun `bare connector command parses to Connector`() {
-        val parsed = SlashCommandParser.parse("/connector:ssh")
-
-        assertTrue(parsed is SlashCommand.Connector)
-        val connector = parsed as SlashCommand.Connector
-        assertEquals("ssh", connector.id)
-        assertEquals(emptyMap<String, String>(), connector.args)
-        assertEquals("", connector.userExtra)
-    }
-
-    @Test
-    fun `bare plugin command parses to Plugin`() {
+    fun `bare plugin command parses to Plugin with empty args`() {
         val parsed = SlashCommandParser.parse("/plugin:pdf_reader")
 
         assertTrue(parsed is SlashCommand.Plugin)
@@ -43,39 +32,50 @@ class SlashCommandParserTest {
         assertEquals("", plugin.userExtra)
     }
 
+    @Test
+    fun `removed domain command types degrade to Unknown`() {
+        // 五域剥离后 skill / mcp / connector / fusion / logic 不再是结构化
+        // 类型 —— 解析必须诚实降级为 Unknown（原文透传给 agent），绝不
+        // 静默吞掉或误路由。
+        listOf("skill", "mcp", "connector", "fusion", "logic").forEach { type ->
+            val parsed = SlashCommandParser.parse("/$type:foo")
+            assertTrue("type=$type should be Unknown", parsed is SlashCommand.Unknown)
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════
     // Args + positional user text
     // ═══════════════════════════════════════════════════════════
 
     @Test
     fun `kv args and positional user text are split correctly`() {
-        val parsed = SlashCommandParser.parse("/connector:wechat room=ops 今天值班同学看下")
+        val parsed = SlashCommandParser.parse("/plugin:pdf_reader file=/sdcard/a.pdf latest report")
 
-        assertTrue(parsed is SlashCommand.Connector)
-        val connector = parsed as SlashCommand.Connector
-        assertEquals("wechat", connector.id)
-        assertEquals(mapOf("room" to "ops"), connector.args)
-        assertEquals("今天值班同学看下", connector.userExtra)
+        assertTrue(parsed is SlashCommand.Plugin)
+        val plugin = parsed as SlashCommand.Plugin
+        assertEquals("pdf_reader", plugin.id)
+        assertEquals(mapOf("file" to "/sdcard/a.pdf"), plugin.args)
+        assertEquals("latest report", plugin.userExtra)
     }
 
     @Test
     fun `multiple kv args are collected in insertion order`() {
-        val parsed = SlashCommandParser.parse("/connector:github repo=owner/name state=open")
+        val parsed = SlashCommandParser.parse("/plugin:reader file=a.pdf page=3")
 
-        val connector = parsed as SlashCommand.Connector
-        assertEquals("github", connector.id)
-        assertEquals(mapOf("repo" to "owner/name", "state" to "open"), connector.args)
-        assertEquals("", connector.userExtra)
+        val plugin = parsed as SlashCommand.Plugin
+        assertEquals("reader", plugin.id)
+        assertEquals(mapOf("file" to "a.pdf", "page" to "3"), plugin.args)
+        assertEquals("", plugin.userExtra)
     }
 
     @Test
     fun `kv value may contain equals signs`() {
         // Regex captures key=([A-Za-z_][\w.\-]*) and value=(.*) ; the value
         // side is greedy, so "a=b=c" → key=a, value="b=c".
-        val parsed = SlashCommandParser.parse("/connector:foo filter=a=b=c")
+        val parsed = SlashCommandParser.parse("/plugin:foo filter=a=b=c")
 
-        val connector = parsed as SlashCommand.Connector
-        assertEquals(mapOf("filter" to "a=b=c"), connector.args)
+        val plugin = parsed as SlashCommand.Plugin
+        assertEquals(mapOf("filter" to "a=b=c"), plugin.args)
     }
 
     @Test
@@ -83,32 +83,41 @@ class SlashCommandParserTest {
         // After the first positional token, subsequent key=value-shaped tokens
         // are treated as user text (CLI-style) rather than dropped into args.
         //（修复：原输入没有 positional token，永远走不到“停止 kv”分支 —— 补一个真 token）
-        val parsed = SlashCommandParser.parse("/connector:foo keep=this run drop=that")
+        val parsed = SlashCommandParser.parse("/plugin:foo keep=this run drop=that")
 
-        val connector = parsed as SlashCommand.Connector
-        assertEquals(mapOf("keep" to "this"), connector.args)
-        assertEquals("run drop=that", connector.userExtra)
+        val plugin = parsed as SlashCommand.Plugin
+        assertEquals(mapOf("keep" to "this"), plugin.args)
+        assertEquals("run drop=that", plugin.userExtra)
     }
 
     @Test
     fun `kv key must start with letter or underscore`() {
         // "1key=val" doesn't match the key regex → positional user text；
-        // 且按 CLI 语义 kv 随即停止 —— 后续合法 kv 也归入 user text（原断言与之矛盾）。
-        val parsed = SlashCommandParser.parse("/connector:foo 1key=val real=v")
+        // 且按 CLI 语义 kv 随即停止 —— 后续合法 kv 也归入 user text。
+        val parsed = SlashCommandParser.parse("/plugin:foo 1key=val real=v")
 
-        val connector = parsed as SlashCommand.Connector
-        assertEquals(emptyMap<String, String>(), connector.args)
-        assertEquals("1key=val real=v", connector.userExtra)
+        val plugin = parsed as SlashCommand.Plugin
+        assertEquals(emptyMap<String, String>(), plugin.args)
+        assertEquals("1key=val real=v", plugin.userExtra)
     }
 
     @Test
     fun `user extra text collapses whitespace runs like sh tokenization`() {
         // 缺陷 7 修复后的 sh-like 词法：空白序列视为单分隔符（引号内除外）。
-        //（原测试期望逐字保留旧实现行为，与新词法设计矛盾）
-        val parsed = SlashCommandParser.parse("/connector:foo   multiple    spaces   here")
+        val parsed = SlashCommandParser.parse("/plugin:foo   multiple    spaces   here")
 
-        val connector = parsed as SlashCommand.Connector
-        assertEquals("multiple spaces here", connector.userExtra)
+        val plugin = parsed as SlashCommand.Plugin
+        assertEquals("multiple spaces here", plugin.userExtra)
+    }
+
+    @Test
+    fun `quoted kv value survives spaces`() {
+        // sh 词法：双引号内空格不切 token，引号被消费。
+        val parsed = SlashCommandParser.parse("""/plugin:foo query="a b c" tail""")
+
+        val plugin = parsed as SlashCommand.Plugin
+        assertEquals(mapOf("query" to "a b c"), plugin.args)
+        assertEquals("tail", plugin.userExtra)
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -117,65 +126,89 @@ class SlashCommandParserTest {
 
     @Test
     fun `leading whitespace is tolerated`() {
-        val parsed = SlashCommandParser.parse("   /connector:ssh")
+        val parsed = SlashCommandParser.parse("   /plugin:pdf_reader")
 
-        assertTrue(parsed is SlashCommand.Connector)
+        assertTrue(parsed is SlashCommand.Plugin)
+        assertEquals("pdf_reader", (parsed as SlashCommand.Plugin).id)
     }
 
     @Test
-    fun `whitespace around the colon is tolerated`() {
-        val parsed = SlashCommandParser.parse("/connector : ssh")
+    fun `trailing whitespace is trimmed from id`() {
+        val parsed = SlashCommandParser.parse("/plugin:pdf_reader   ")
 
-        assertTrue(parsed is SlashCommand.Connector)
-        assertEquals("ssh", (parsed as SlashCommand.Connector).id)
+        assertTrue(parsed is SlashCommand.Plugin)
+        assertEquals("pdf_reader", (parsed as SlashCommand.Plugin).id)
     }
 
     // ═══════════════════════════════════════════════════════════
-    // Degradation paths
+    // Degradation to Unknown
     // ═══════════════════════════════════════════════════════════
 
     @Test
-    fun `input without slash degrades to Unknown`() {
-        val parsed = SlashCommandParser.parse("connector:ssh")
+    fun `input without leading slash is Unknown`() {
+        val parsed = SlashCommandParser.parse("plugin:missing_slash")
 
         assertTrue(parsed is SlashCommand.Unknown)
-        assertEquals("connector:ssh", (parsed as SlashCommand.Unknown).raw)
+        assertEquals("plugin:missing_slash", (parsed as SlashCommand.Unknown).raw)
     }
 
     @Test
-    fun `input without colon degrades to Unknown`() {
-        val parsed = SlashCommandParser.parse("/connector ssh")
-
-        assertTrue(parsed is SlashCommand.Unknown)
-    }
-
-    @Test
-    fun `empty id degrades to Unknown`() {
-        val parsed = SlashCommandParser.parse("/connector:")
+    fun `input with missing colon is Unknown`() {
+        val parsed = SlashCommandParser.parse("/plugin")
 
         assertTrue(parsed is SlashCommand.Unknown)
     }
 
     @Test
-    fun `unknown type degrades to Unknown`() {
-        val parsed = SlashCommandParser.parse("/skill:code_interpreter")
-
-        assertTrue(parsed is SlashCommand.Unknown)
-        assertEquals("/skill:code_interpreter", (parsed as SlashCommand.Unknown).raw)
-    }
-
-    @Test
-    fun `mcp type is no longer known in theocracy`() {
-        // skill / mcp / fusion 域已剥离 —— 旧命令形态降级为 Unknown（直发）。
-        val parsed = SlashCommandParser.parse("/mcp:github")
+    fun `input with empty id is Unknown`() {
+        val parsed = SlashCommandParser.parse("/plugin:")
 
         assertTrue(parsed is SlashCommand.Unknown)
     }
 
     @Test
-    fun `blank input degrades to Unknown`() {
-        val parsed = SlashCommandParser.parse("   ")
+    fun `input with empty type is Unknown`() {
+        // "/:foo" → colon at index 1 → type substring is empty.
+        val parsed = SlashCommandParser.parse("/:foo")
 
         assertTrue(parsed is SlashCommand.Unknown)
+    }
+
+    @Test
+    fun `input with unknown type is Unknown`() {
+        val parsed = SlashCommandParser.parse("/unknown:foo")
+
+        assertTrue(parsed is SlashCommand.Unknown)
+    }
+
+    @Test
+    fun `unknown command forwards raw text verbatim`() {
+        val parsed = SlashCommandParser.parse("/help")
+
+        assertTrue(parsed is SlashCommand.Unknown)
+        assertEquals("/help", (parsed as SlashCommand.Unknown).raw)
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // Helper
+    // ═══════════════════════════════════════════════════════════
+
+    @Test
+    fun `looksLikeSlash detects leading slash after whitespace`() {
+        assertTrue(SlashCommand.looksLikeSlash("/plugin:foo"))
+        assertTrue(SlashCommand.looksLikeSlash("   /plugin:foo"))
+        assertTrue(!SlashCommand.looksLikeSlash("plugin:foo"))
+        assertTrue(!SlashCommand.looksLikeSlash(""))
+    }
+
+    @Test
+    fun `supported types list is stable and ordered`() {
+        // Order matters for slash-menu rendering; assert it explicitly so a
+        // future reorder is a conscious decision rather than an accident.
+        // Theocracy：仅剩 plugin（skill/mcp/connector/logic/fusion 随五域剥离移除）。
+        assertEquals(
+            listOf("plugin"),
+            SlashCommand.SUPPORTED_TYPES
+        )
     }
 }

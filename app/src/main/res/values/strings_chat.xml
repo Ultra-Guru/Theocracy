@@ -47,11 +47,9 @@
     <string name="chat_review_opinion">Review</string>
 
     <!-- ═══ AgentChatPlanCards ═══ -->
-    <string name="chat_pipeline_calling_connector">Calling connector</string>
     <string name="chat_pipeline_calling_plugin">Calling plugin</string>
     <string name="chat_pipeline_running_skill">Running skill</string>
     <string name="chat_pipeline_running_fusion">FUSION system in use</string>
-    <string name="chat_pipeline_connector_done">Connector finished</string>
     <string name="chat_pipeline_plugin_done">Plugin finished</string>
     <string name="chat_pipeline_fusion_done">FUSION system finished</string>
     <string name="chat_pipeline_skill_done">Skill finished</string>
@@ -124,7 +122,6 @@
     <string name="chat_toolkind_web_search">Web search</string>
     <string name="chat_toolkind_web_fetch">Web fetch</string>
     <string name="chat_toolkind_browser">Browser</string>
-    <string name="chat_toolkind_connector">Connector</string>
     <string name="chat_toolkind_plugin">Plugin</string>
     <string name="chat_toolkind_fusion">FUSION</string>
     <string name="chat_toolkind_terminal">Terminal</string>
@@ -317,8 +314,6 @@
     <string name="chat_slash_plugins">Plugins</string>
     <string name="chat_slash_plugins_empty">No installed plugins found</string>
     <string name="chat_slash_plugins_partial">Loaded plugins are connectivity-verified only — tool bridge in progress</string>
-    <string name="chat_slash_connectors">Connectors</string>
-    <string name="chat_slash_connectors_empty">No enabled connectors (add in Market)</string>
 
     <!-- ═══ Toolkit structured-output formats & unconfigured-LLM guard ═══ -->
     <string name="chat_format_none">Off</string>
