@@ -95,9 +95,10 @@ class NavigationBackStackTest {
     }
 
     @Test
-    fun `老 skill route 兜底市场页`() {
+    fun `老 skill route 走未知兜底 Agent`() {
+        // Theocracy：市场/技能域已剥离 —— skill 老路由统一未知兜底 Agent。
         val restored = NavigationBackStack.Saver.restore(arrayListOf("skill"))!!
-        assertEquals(DrawerDestination.Terminal, restored.current)
+        assertEquals(DrawerDestination.Agent, restored.current)
     }
 
     @Test

@@ -46,7 +46,7 @@ class CapabilityPromptTest {
     fun `playbook carries verify-before-success and never-impossible guards`() {
         val p = prompt()
         assertTrue(p.contains("VERIFY it took effect"))
-        assertTrue(p.contains("Never claim a task is impossible before routes 1-4 have been tried"))
+        assertTrue(p.contains("Never claim a task is impossible before routes 1-4"))
     }
 
     @Test
@@ -99,9 +99,13 @@ class CapabilityPromptTest {
     // ── Tool-Use Policy 第 8 条 ───────────────────────────────
 
     @Test
-    fun `tool use policy points to the playbook`() {
+    fun `tool use policy routes missing capabilities through catalog`() {
+        // 第 8 条改指工具目录链（ToolSearch → ToolOpen → CapabilityReport），
+        // 不再引用 Playbook 术语（六路线攻略与 skill/mcp 域一并剥离）。
         val p = prompt()
-        assertTrue(p.contains("climb the Capability Expansion Playbook"))
+        assertTrue(p.contains("call ToolSearch to find"))
+        assertTrue(p.contains("ToolOpen to load it"))
+        assertTrue(p.contains("CapabilityReport() to self-check"))
     }
 
     // ── 段落顺序 ─────────────────────────────────────────────
