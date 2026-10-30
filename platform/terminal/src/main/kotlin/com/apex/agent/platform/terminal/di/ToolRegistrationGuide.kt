@@ -9,9 +9,7 @@ import com.apex.agent.platform.terminal.tools.v2.TerminalResizeTool
 import com.apex.agent.platform.terminal.tools.v2.TerminalRunTool
 import com.apex.agent.platform.terminal.tools.v2.TerminalSignalTool
 import com.apex.agent.platform.terminal.tools.v2.TerminalSnapshotTool
-import com.apex.agent.platform.terminal.tools.v2.TerminalUbuntuInstallTool
 import com.apex.agent.platform.terminal.tools.v2.TerminalWaitTool
-import com.apex.agent.platform.terminal.tools.v2.TerminalWorkspacesTool
 import com.apex.agent.platform.terminal.tools.v2.TerminalWriteTool
 import com.apex.agent.platform.terminal.tools.legacy.LegacyCloseTool
 import com.apex.agent.platform.terminal.tools.legacy.LegacyExecTool
@@ -106,25 +104,11 @@ object ToolRegistrationGuide {
         com.apex.agent.platform.terminal.tools.v2.TerminalExecTool(engine)
 
     /**
-     * T73: 后端能力发现 + Ubuntu rootfs 安装引导 —— Agent 自主进入 Ubuntu 的两个入口。
-     * 构造需要 RootfsProvisioner/RootfsTarget（app TerminalModule 提供），
-     * 因此不进 newTools(rt)，由 ToolModule 直接注册。
+     * T73: 后端能力发现 —— 后端注册表现状（Theocracy 只剩 local）。构造只需
+     * TerminalRuntime，由 ToolModule 直接注册。
      */
-    fun backendTools(rt: TerminalRuntime, provisioner: com.apex.agent.platform.terminal.ubuntu.RootfsProvisioner, target: com.apex.agent.platform.terminal.ubuntu.RootfsTarget) = listOf(
-        TerminalBackendsTool(rt),
-        TerminalUbuntuInstallTool(provisioner, target)
-    )
-
-    /**
-     * T75: workspace 管理（list/create/inspect/delete）。构造需要 LinuxWorkspaceManager
-     * （app TerminalModule 提供），由 ToolModule 直接注册。
-     */
-    fun workspaceTools(
-        workspaces: com.apex.agent.platform.terminal.workspace.LinuxWorkspaceManager,
-        projectEnvironment: com.apex.agent.platform.terminal.environment.ProjectEnvironmentCoordinator
-    ) = listOf(
-        TerminalWorkspacesTool(workspaces),
-        com.apex.agent.platform.terminal.tools.v2.TerminalWorkspaceEnvironmentTool(projectEnvironment)
+    fun backendTools(rt: TerminalRuntime) = listOf(
+        TerminalBackendsTool(rt)
     )
 
     /** Construct all 6 legacy compat aliases (call once during Hilt init). */
@@ -150,9 +134,6 @@ object ToolRegistrationGuide {
         "TerminalClose" to "§34.9",
         "TerminalBackends" to "T73（后端能力发现：availability 三态）",
         "TerminalExec" to "exec 包（一次性结构化执行：stdout/stderr/exit_code/duration_ms/truncated + 限长 + ANSI）",
-        "TerminalUbuntuInstall" to "T73（Ubuntu rootfs 安装引导）",
-        "TerminalWorkspaces" to "T75（workspace 管理：隔离文件区生命周期）",
-        "TerminalWorkspaceEnvironment" to "P83（项目感知开发环境：analyze/ensure 工具链闭环）",
         "TerminalExecLegacy" to "§35 (compat → run+wait+observe)",
         "TerminalReadLegacy" to "§35 (compat → observe RAW)",
         "TerminalSendLegacy" to "§35 (compat → write)",

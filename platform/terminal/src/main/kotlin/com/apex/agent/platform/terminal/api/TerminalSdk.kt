@@ -26,8 +26,7 @@ import com.apex.agent.platform.terminal.state.TerminalSemanticState
  *
  * Construction (production DI):
  * ```
- * val sdk = TerminalSdk(runtime)                       // default backend = "local"
- * val ubuntuSdk = TerminalSdk(runtime, "linux-ubuntu") // create → Ubuntu/PRoot sessions
+ * val sdk = TerminalSdk(runtime)   // default backend = "local" (Theocracy: the only backend)
  * ```
  */
 class TerminalSdk(
@@ -43,7 +42,7 @@ class TerminalSdk(
         val backendId = request.environment.overrides[APEX_BACKEND_ENV]
             ?: defaultBackendId
         val r = runtime.create(
-            cwd = request.workingDirectory ?: if (backendId == "local") "/sdcard" else "/workspace",
+            cwd = request.workingDirectory ?: "/sdcard",
             rows = request.terminalSize.rows,
             cols = request.terminalSize.columns,
             env = request.environment.overrides,

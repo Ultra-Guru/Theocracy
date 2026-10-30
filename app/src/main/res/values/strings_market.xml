@@ -167,7 +167,6 @@
     <string name="market_mcp_command_hint">npx / python / absolute path to a binary</string>
     <string name="market_mcp_args_label">Arguments (args, space-separated)</string>
     <string name="market_mcp_env_label">Environment variables (optional, KEY=VALUE per line)</string>
-    <string name="market_mcp_stdio_hint">MCP is not necessarily a server: this command is started as a local child process speaking JSON-RPC over stdin/stdout. The command must be executable in an environment visible to the App (e.g. Node/Python installed in the App\'s Ubuntu environment).</string>
     <string name="market_mcp_url_label">URL (http(s)://\u2026)</string>
     <string name="market_mcp_apikey_label">API Key (optional, sent as Bearer)</string>
     <string name="market_mcp_add_connect">Add &amp; connect</string>
@@ -179,10 +178,6 @@
     <string name="market_mcp_edit_saved">Updated: %1$s (reconnecting…)</string>
     <string name="market_mcp_edit_action">Edit</string>
 
-    <!-- ═══ Dialogs · Add MCP · PRoot sandbox (Issue #163) ═══ -->
-    <string name="market_mcp_sandbox_label">Run in PRoot sandbox</string>
-    <string name="market_mcp_sandbox_desc">Runs the command inside the embedded Ubuntu environment (recommended for local commands \u2014 the Android host has no npx/node)</string>
-    <string name="market_mcp_sandbox_unavailable">Requires the Ubuntu environment to be installed first</string>
 
     <!-- ═══ Dialogs · Import MCP config ═══ -->
     <string name="market_mcp_import_dialog_title">Import MCP config</string>
@@ -360,7 +355,6 @@
     <string name="market_hub_mcp_header">Official MCP Hub — install · configure · start</string>
     <string name="market_hub_mcp_loading">Loading MCP hub…</string>
     <string name="market_hub_mcp_not_running">Installed · not running</string>
-    <string name="market_hub_mcp_requires_rootfs">Runs in the PRoot Ubuntu sandbox — install Ubuntu from the Terminal page first if not yet installed</string>
     <string name="market_mcp_configured_header">Workspace servers · configure / start (%1$d)</string>
     <string name="market_mcp_config">Configure</string>
     <string name="market_mcp_start">Start</string>
@@ -399,7 +393,6 @@
     <string name="market_registry_kind_remote">Remote</string>
     <string name="market_registry_kind_npm">npm · sandbox</string>
     <string name="market_registry_kind_unsupported">Manual</string>
-    <string name="market_registry_npm_installing">Pre-installing npm package inside PRoot sandbox (real download, may take up to 5 min)…</string>
     <string name="market_registry_pulse_credentials_title">PulseMCP credentials</string>
     <string name="market_registry_pulse_credentials_hint">PulseMCP is a partner API. Request X-API-Key and X-Tenant-ID from pulsemcp.com, then paste them here (stored encrypted on device).</string>
     <string name="market_registry_credentials_clear">Clear</string>

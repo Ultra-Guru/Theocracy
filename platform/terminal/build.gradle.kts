@@ -46,12 +46,11 @@ android {
     }
 
     packaging {
-        // P71: proot/loader/talloc 预构建二进制需要在设备上以文件形式存在
-        //（nativeLibraryDir exec），app 与本模块（androidTest APK）都开 legacy 打包。
+        // 历史：P71 PRoot 时代要求预构建二进制以文件形式落在 nativeLibraryDir；
+        // Ubuntu/PRoot 栈已移除，保留 legacy 打包仅为避免无谓扰动（CMake 产物
+        // 经 System.loadLibrary 加载，不依赖此开关）。
         jniLibs {
             useLegacyPackaging = true
-            // T83: 内置 rootfs 伪 .so 非 ELF 对象 —— 跳过 strip（同 app 模块）。
-            keepDebugSymbols += "**/libubuntu-rootfs.so"
         }
     }
 
@@ -99,9 +98,9 @@ dependencies {
 // when tests fail. Without this, Gradle captures stdout into the HTML report
 // only, not the console — making integration-test debugging impossible.
 tasks.withType<Test>().configureEach {
-    // 30 分钟：T72 E2E（真实 Ubuntu 下载/解包 + proot 真实 apt）在 2 核 CI runner
-    // 上实测需 20+ 分钟；20 分钟预算在缓存失效（首次或输入变更）后必超时。
-    // 单条 proot 探测/L2 命令自身有界（30s/60s），无限挂起已在上游修复。
+    // 30 分钟：历史 T72 E2E（Ubuntu 下载/解包 + 真实 apt）在 2 核 CI runner 上
+    // 实测需 20+ 分钟；虽然该链路已随 Ubuntu/PRoot 栈移除，保留充裕预算以防
+    // 未来新增重量级测试时无谓超时。
     timeout.set(Duration.ofMinutes(30))
     // ─── CI 挂死根因修复（jstack 确证）：IO 线程池被泄漏泵耗尽 ───
     // 大量测试类创建 Runtime/Session 后从不 close —— 每个泄漏会话的输出泵在

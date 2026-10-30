@@ -178,7 +178,7 @@ class RealCommandExecutorTest {
     fun `nonzero exit surfaces real code`() = runTest {
         val cmd = "false"
         val echo = ShellMarkers.wrapCommand(7, cmd)
-        val raw = echo + "\r\nbash: nope: command not found\nroot@ubuntu:~# "
+        val raw = echo + "\r\nbash: nope: command not found\nroot@localhost:~# "
         val runtime = FakeRuntime(scriptedRaw = raw, scriptedExit = 127, pollIntervalMs = 120)
         val executor = RealCommandExecutor(runtime, pollIntervalMs = 120)
 

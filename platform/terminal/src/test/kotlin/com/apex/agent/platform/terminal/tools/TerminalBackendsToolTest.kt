@@ -60,12 +60,12 @@ class TerminalBackendsToolTest {
         kotlinx.serialization.json.Json.parseToJsonElement(json).jsonObject["backends"]!!.jsonArray
 
     @Test
-    fun `ready and needs-rootfs backends serialize honestly`() = runBlocking {
+    fun `ready and failed backends serialize honestly`() = runBlocking {
         val tool = TerminalBackendsTool(
             FakeRuntime(
                 listOf(
                     TerminalRuntime.BackendStatus("local", "ANDROID_LOCAL", true, "READY"),
-                    TerminalRuntime.BackendStatus("linux-ubuntu", "LINUX", false, "NEEDS_ROOTFS:not_provisioned", "先调用 TerminalUbuntuInstall")
+                    TerminalRuntime.BackendStatus("stub-alt", "LINUX", false, "FAILED", "binary missing")
                 )
             )
         )
@@ -78,11 +78,11 @@ class TerminalBackendsToolTest {
         assertEquals("READY", local["state"]!!.jsonPrimitive.content)
         assertNull(local["detail"])
 
-        val ubuntu = arr[1].jsonObject
-        assertEquals("linux-ubuntu", ubuntu["id"]!!.jsonPrimitive.content)
-        assertEquals("false", ubuntu["available"]!!.jsonPrimitive.content)
-        assertEquals("NEEDS_ROOTFS:not_provisioned", ubuntu["state"]!!.jsonPrimitive.content)
-        assertEquals("先调用 TerminalUbuntuInstall", ubuntu["detail"]!!.jsonPrimitive.content)
+        val other = arr[1].jsonObject
+        assertEquals("stub-alt", other["id"]!!.jsonPrimitive.content)
+        assertEquals("false", other["available"]!!.jsonPrimitive.content)
+        assertEquals("FAILED", other["state"]!!.jsonPrimitive.content)
+        assertEquals("binary missing", other["detail"]!!.jsonPrimitive.content)
     }
 
     @Test
@@ -95,10 +95,10 @@ class TerminalBackendsToolTest {
     @Test
     fun `failed backend carries reason in detail`() = runBlocking {
         val tool = TerminalBackendsTool(
-            FakeRuntime(listOf(TerminalRuntime.BackendStatus("linux-ubuntu", "LINUX", false, "FAILED", "PRootError:BINARY_NOT_FOUND")))
+            FakeRuntime(listOf(TerminalRuntime.BackendStatus("stub-alt", "LINUX", false, "FAILED", "SpawnError:BINARY_NOT_FOUND")))
         )
-        val ubuntu = parse(tool.invoke("{}"))[0].jsonObject
-        assertEquals("FAILED", ubuntu["state"]!!.jsonPrimitive.content)
-        assertEquals("PRootError:BINARY_NOT_FOUND", ubuntu["detail"]!!.jsonPrimitive.content)
+        val other = parse(tool.invoke("{}"))[0].jsonObject
+        assertEquals("FAILED", other["state"]!!.jsonPrimitive.content)
+        assertEquals("SpawnError:BINARY_NOT_FOUND", other["detail"]!!.jsonPrimitive.content)
     }
 }

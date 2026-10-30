@@ -13,7 +13,7 @@ package com.apex.agent.core.tools
  *
  * - [ToolEnvironmentState] holds live capability flags, updated by the
  *   app layer (accessibility service connect/disconnect, network
- *   callbacks, terminal/Ubuntu lifecycle transitions);
+ *   callbacks, terminal lifecycle transitions);
  * - a tool *declares* its preconditions by implementing
  *   [EnvironmentAwareTool.requiredEnv];
  * - [ToolEnvironmentGate] (a standard [ToolExecutionGate]) fails fast
@@ -46,9 +46,6 @@ class ToolEnvironmentState {
 
         /** Shizuku binder is connected and privileged. */
         const val SHIZUKU_AVAILABLE = "shizuku_available"
-
-        /** Bundled PRoot Ubuntu rootfs is provisioned (offline extraction complete; apt bootstrap may be degraded but usable). */
-        const val UBUNTU_READY = "ubuntu_ready"
 
         /** Terminal runtime has at least one live session. */
         const val TERMINAL_SESSION_OPEN = "terminal_session_open"
@@ -125,7 +122,7 @@ class ToolEnvironmentState {
 
     /**
      * One-line summary for prompt injection — the model-facing form:
-     * `environment: keyboard=off accessibility=on network=on ubuntu=ready`
+     * `environment: keyboard=off accessibility=on network=on terminal_session=on`
      *
      * Unknown/expired flags are omitted rather than guessed, so the prompt
      * never teaches the model a wrong fact; the gate tolerates the same
@@ -150,7 +147,6 @@ class ToolEnvironmentState {
             Flags.NETWORK_AVAILABLE,
             Flags.ROOT_AVAILABLE,
             Flags.SHIZUKU_AVAILABLE,
-            Flags.UBUNTU_READY,
             Flags.TERMINAL_SESSION_OPEN,
             Flags.BROWSER_ATTACHED,
             Flags.POWER_SUITABLE
@@ -223,9 +219,6 @@ class ToolEnvironmentGate(
             "Check connectivity with device_info, wait for network, or switch to " +
                 "offline tools (files, data, terminal)."
 
-        ToolEnvironmentState.Flags.UBUNTU_READY ->
-            "Run TerminalUbuntuEnsure first to extract the bundled Ubuntu environment (offline; minutes — full ~1GB environment)."
-
         ToolEnvironmentState.Flags.TERMINAL_SESSION_OPEN ->
             "Create a terminal session with TerminalCreate first."
 
@@ -233,7 +226,7 @@ class ToolEnvironmentGate(
             "Open/attach the browser page (BrowserNavigate) before DOM actions."
 
         ToolEnvironmentState.Flags.ROOT_AVAILABLE ->
-            "Ask the user to grant root, or use the sandbox/PRoot route instead."
+            "Ask the user to grant root, or use a lower-privilege route instead."
 
         ToolEnvironmentState.Flags.SHIZUKU_AVAILABLE ->
             "Ask the user to start Shizuku, or use a lower-privilege route."

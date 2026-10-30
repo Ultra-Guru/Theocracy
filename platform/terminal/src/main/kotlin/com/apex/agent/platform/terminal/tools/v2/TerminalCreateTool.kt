@@ -21,15 +21,14 @@ import kotlinx.serialization.json.jsonPrimitive
  * JSON Schema (input):
  *   { shell?: string="/system/bin/sh", cwd?: string="/sdcard", rows?: int=24, cols?: int=200,
  *     env?: object<string,string>, privilege?: "NORMAL"|"SHIZUKU"|"ROOT"=NORMAL,
- *     backend?: string="local", workspaceId?: string }   // T75: workspaceId 仅 linux-ubuntu
+ *     backend?: string="local", workspaceId?: string }
  * JSON Schema (output):
  *   { sessionId: int, pid: int, shell: string, cwd: string, rows: int, cols: int,
  *     privilege: string, state: "READY"|"STARTING"|"BROKEN", cursor: int,
- *     backendId: string, runtimeType: string, rootfsId?: string, guestCwd?: string,
+ *     backendId: string, runtimeType: string, guestCwd?: string,
  *     workspaceId?: string }
  * Errors: PtyUnavailable, InvalidInput, PermissionDenied, BackendNotFound,
- *         RootfsNotReady（先调 TerminalUbuntuInstall）, BackendFailed,
- *         WorkspaceError:InvalidId（workspaceId 非法）
+ *         BackendFailed, WorkspaceError:InvalidId（workspaceId 非法）
  */
 class TerminalCreateTool(
     private val runtime: TerminalRuntime
@@ -39,15 +38,12 @@ class TerminalCreateTool(
     override val description: String = """
         Create a long-lived terminal Session (PTY + shell). A Session is a workspace, not a single
         command. Returns sessionId for subsequent run/observe/wait/write calls.
-        backend="local" runs the Android shell; backend="linux-ubuntu" runs Ubuntu 24.04 via PRoot
-        (requires the rootfs to be installed — check TerminalBackends, install via TerminalUbuntuInstall).
-        For linux-ubuntu, workspaceId selects an isolated file area bound to guest /workspace
-        (persists across sessions; unknown valid ids are auto-created; default: "default" —
-        manage via TerminalWorkspaces).
+        backend="local" runs the Android shell (the only backend in Theocracy — the
+        Ubuntu/PRoot backend was removed with the Linux stack).
     """.trimIndent()
 
     override val parametersSchema: String = """
-{"type":"object","properties":{"shell":{"type":"string","default":"/system/bin/sh","description":"Android shell path (local backend only; linux-ubuntu always uses /bin/bash)"},"cwd":{"type":"string","default":"/sdcard","description":"Initial working directory. linux-ubuntu: guest path (/workspace default; relative paths land under /workspace)"},"rows":{"type":"integer","default":24},"cols":{"type":"integer","default":200,"description":"Terminal width in columns. Agent sessions default to 200 — the legacy 80-col default hard-wrapped long commands, splitting identifiers across SCREEN-mode read lines (misread risk). Human-facing views re-flow independently."},"env":{"type":"object","additionalProperties":{"type":"string"},"description":"Extra environment variables (local: appended to defaults; linux-ubuntu: passed into the guest)"},"backend":{"type":"string","default":"local","enum":["local","linux-ubuntu"],"description":"Execution backend: local = Android shell, linux-ubuntu = Ubuntu 24.04 via PRoot"},"workspaceId":{"type":"string","description":"linux-ubuntu only: isolated workspace id bound to guest /workspace. Pattern: lowercase alphanumeric, may contain - and _, max 64 chars. Unknown valid ids are auto-created. Ignored (error) for local backend."}},"required":[]}
+{"type":"object","properties":{"shell":{"type":"string","default":"/system/bin/sh","description":"Android shell path"},"cwd":{"type":"string","default":"/sdcard","description":"Initial working directory"},"rows":{"type":"integer","default":24},"cols":{"type":"integer","default":200,"description":"Terminal width in columns. Agent sessions default to 200 — the legacy 80-col default hard-wrapped long commands, splitting identifiers across SCREEN-mode read lines (misread risk). Human-facing views re-flow independently."},"env":{"type":"object","additionalProperties":{"type":"string"},"description":"Extra environment variables (appended to the backend defaults)"},"backend":{"type":"string","default":"local","enum":["local"],"description":"Execution backend: local = Android shell"},"workspaceId":{"type":"string","description":"Reserved (ignored for the local backend)."}},"required":[]}
     """.trimIndent()
 
     suspend fun execute(input: Input): Output {
@@ -67,7 +63,7 @@ class TerminalCreateTool(
                 rows = r.rows, cols = r.cols, privilege = r.privilege.name,
                 state = r.state, cursor = r.cursor,
                 backendId = r.backendId, runtimeType = r.runtimeType,
-                rootfsId = r.rootfsId, guestCwd = r.guestCwd,
+                guestCwd = r.guestCwd,
                 workspaceId = r.workspaceId
             ) },
             onFailure = { throw it }
@@ -100,7 +96,6 @@ class TerminalCreateTool(
             put("state", JsonPrimitive(out.state)); put("cursor", JsonPrimitive(out.cursor))
             put("backendId", JsonPrimitive(out.backendId))
             put("runtimeType", JsonPrimitive(out.runtimeType))
-            out.rootfsId?.let { put("rootfsId", JsonPrimitive(it)) }
             out.guestCwd?.let { put("guestCwd", JsonPrimitive(it)) }
             out.workspaceId?.let { put("workspaceId", JsonPrimitive(it)) }
         }.toString()
@@ -129,7 +124,6 @@ class TerminalCreateTool(
         val cursor: Long,
         val backendId: String = "local",
         val runtimeType: String = "ANDROID_LOCAL",
-        val rootfsId: String? = null,
         val guestCwd: String? = null,
         val workspaceId: String? = null
     )

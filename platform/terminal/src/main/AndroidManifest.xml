@@ -10,7 +10,7 @@
 
     <application>
         <!-- T91（D2-D4）：跨进程终端服务 —— UI 经 bindService(ITerminalService) 访问，
-             ACTION_START 升前台（specialUse：PTY 会话 + Ubuntu 依赖安装的长时运行）。
+             ACTION_START 升前台（specialUse：PTY 会话与长时运行终端任务）。
              exported=false：仅宿主进程内/同 App 消费；多进程路线见
              docs/terminal/TERMINAL_IPC_SERVICE_T91.md（契约已预留，未启用）。 -->
         <service
@@ -19,7 +19,7 @@
             android:foregroundServiceType="specialUse">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="terminal runtime host — persistent PTY sessions and Ubuntu provisioning tasks" />
+                android:value="terminal runtime host — persistent PTY sessions and long-running terminal tasks" />
         </service>
     </application>
 </manifest>

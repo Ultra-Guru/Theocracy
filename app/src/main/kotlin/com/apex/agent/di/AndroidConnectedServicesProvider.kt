@@ -51,8 +51,7 @@ class AndroidConnectedServicesProvider @Inject constructor(
                     "  GithubGetUser, read/write files with GithubReadFile / GithubWriteFile,\n" +
                     "  manage issues with GithubCreateIssue / GithubListIssues, search code\n" +
                     "  with GithubSearchCode. Prefer github_* tools over generic WebFetch\n" +
-                    "  for ANY github.com task. git clone/push inside the Ubuntu sandbox also\n" +
-                    "  works with your credentials (TerminalExec / git tools inject them)."
+                    "  for ANY github.com task."
             )
         } else {
             // v3 S3：未连接也注入一行可行动指引（github_* 工具恒注册在场，

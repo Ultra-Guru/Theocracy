@@ -22,7 +22,7 @@ package com.apex.agent.ui.screen.terminal
  *  - 行首回显：run() 写入的命令行会被 PTY 原样回显为流的第一行（长命令
  *    在 80 列处折行为多物理行）—— 以 [expectedEcho] 全文（ANSI 剥离后）
  *    逐行消费，回显跨物理行折行也能正确吞掉；echo 完成后残余即真实输出。
- *  - 提示符尾：mksh `${USER}@${HOSTNAME}:cwd $ ` / bash `root@ubuntu:~#`
+ *  - 提示符尾：mksh `${USER}@${HOSTNAME}:cwd $ ` / bash `root@host:~#`
  *    家族（与 platform InputWaitingDetector 的 HIGH_CONFIDENCE 同源规则）
  *    —— finish 时残留的无换行尾巴命中即弃（那是下一 prompt，不是输出）。
  *

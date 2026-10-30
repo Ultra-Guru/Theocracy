@@ -201,9 +201,9 @@ internal object EnginePrompts {
             appendLine("  Sessions preserve cwd/env/state across commands. Simple one-liner probes may still use TerminalExec.")
             appendLine("- Interactive programs (gh auth login, python REPL, vim, apt prompts) REQUIRE a session:")
             appendLine("  TerminalCreate + TerminalWrite.")
-            appendLine("- Toolchain tasks (apt install / git clone / npm / pip / cargo / make / gcc): check")
-            appendLine("  TerminalBackends, if Ubuntu not ready call TerminalUbuntuEnsure FIRST — report progress")
-            appendLine("  to the user.")
+            appendLine("- Toolchain tasks (git clone / npm / pip / cargo / make / gcc) run on the Android host:")
+            appendLine("  prefer a session (TerminalCreate + TerminalRun) for multi-step work; host has no apt.")
+            appendLine("  Check TerminalBackends for the live backend list.")
             appendLine("- Never re-run a failed one-shot command more than twice — inspect output, open a session,")
             appendLine("  or ask the user.")
             // 实录 #7：heredoc 直灌 PTY 把会话挂死在 PS2 '>' —— Ctrl+C 经信号层
@@ -216,20 +216,18 @@ internal object EnginePrompts {
             appendLine("  TerminalSignal cannot interrupt the shell itself.")
             appendLine()
             // ═══ Shell Dialect Map（2026-10 用户反馈「执行命令出错率特别高」）═══
-            // 旧提示词宣称“PRoot Ubuntu is a full Linux userland”却从不告诉模型
-            // 两套 shell 的方言边界 —— 模型拿 bashism（pipefail/数组/<<</进程
-            // 替换）与 GNU 选项（grep -P / sort -h）去打宿主 mksh+toybox，拿
-            // python3/gcc/apt 去打 ShellExecute（宿主通道，必然 not found）。
-            // 把方言地图写进 prompt，让模型在写命令前就知道往哪边发。
+            // 历史教训（2026-10 用户反馈「执行命令出错率特别高」）：模型拿
+            // bashism（pipefail/数组/<<</进程替换）与 GNU 选项（grep -P /
+            // sort -h）去打宿主 mksh+toybox 导致大面积失败。方言地图写进
+            // prompt，让模型在写命令前就知道宿主 shell 的边界。（Ubuntu
+            // 沙箱一段已随 Linux 栈剥离移除 —— 现仅剩 Android 宿主方言。）
             appendLine("## Shell Dialect Map (MANDATORY — wrong dialect = command failure)")
-            appendLine("- TWO shells exist. Android HOST (ShellExecute, TerminalCreate backend=local): mksh +")
+            appendLine("- ONE shell exists: the Android HOST (ShellExecute, TerminalExec, TerminalCreate): mksh +")
             appendLine("  toybox — POSIX subset ONLY. NO pipefail, NO arrays, NO here-strings (<<<), NO \$'...',")
             appendLine("  NO process substitution, NO GNU-only flags (grep -P / sort -h / xargs -d).")
-            appendLine("- Ubuntu SANDBOX (TerminalExec one-shots, TerminalCreate backend=linux-ubuntu): real")
-            appendLine("  /bin/bash with full GNU coreutils — bashisms and GNU flags all work.")
-            appendLine("- Linux toolchain binaries (python3, gcc, g++, git, npm, node, pip, cargo, make, apt)")
-            appendLine("  exist ONLY inside the Ubuntu sandbox. NEVER invoke them via ShellExecute — they are")
-            appendLine("  not on the host and will fail with 'not found'.")
+            appendLine("- Only binaries present on the host can run (check with cmds / TerminalBackends).")
+            appendLine("  python3 / gcc / apt and other distro toolchains are NOT available on the host —")
+            appendLine("  say so honestly instead of retrying; ask the user before assuming otherwise.")
             appendLine("- There is NO tool named 'bash', 'sh' or 'run_command' in this environment.")
             appendLine("  One-shot commands always go through TerminalExec.")
             appendLine()
@@ -274,7 +272,7 @@ internal object EnginePrompts {
             }
 
             // ═══ Tool System v3：实时环境能力快照（与执行侧环境门同源）═══
-            // Mobile-Agent 范式：每轮注入环境真值（键盘/无障碍/网络/Ubuntu），
+            // Mobile-Agent 范式：每轮注入环境真值（键盘/无障碍/网络/终端会话），
             // 让模型在被门控拒绝前就知道前置条件不满足 —— prompt 里的与
             // gate 里的永远是同一份状态（都来自 ToolEnvironmentState）。
             if (!environmentSummary.isNullOrBlank()) {

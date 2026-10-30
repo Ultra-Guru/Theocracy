@@ -81,7 +81,7 @@ object PrivilegeLadder {
                 summary = "NORMAL_SHELL — no Root, no Shizuku (bottom of the ladder)",
                 can = listOf(
                     "basic file operations in /sdcard and your own app sandbox",
-                    "the PRoot Ubuntu terminal (full Linux userland, unprivileged)"
+                    "the Android local terminal (mksh + toybox, unprivileged)"
                 ),
                 cannot = listOf(
                     "pm app management / am activity control / settings put (needs SHIZUKU)",

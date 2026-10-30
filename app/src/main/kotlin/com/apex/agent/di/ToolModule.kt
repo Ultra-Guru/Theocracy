@@ -27,29 +27,14 @@ import com.apex.agent.platform.terminal.tools.v2.TerminalCreateTool
 import com.apex.agent.platform.terminal.tools.v2.TerminalExecTool
 import com.apex.agent.platform.TerminalExec.ExecEngine
 import com.apex.agent.tools.PrivilegedCommandSpawner
-import com.apex.agent.tools.ProotCommandSpawner
-import com.apex.agent.platform.terminal.proot.PRootHostEnvironment
-import com.apex.agent.platform.terminal.tools.v2.TerminalLinuxBootstrapTool
-import com.apex.agent.platform.terminal.tools.v2.TerminalLinuxNetworkTool
-import com.apex.agent.platform.terminal.tools.v2.TerminalLinuxPackagesTool
-import com.apex.agent.platform.terminal.tools.v2.TerminalLinuxStatusTool
 import com.apex.agent.platform.terminal.tools.v2.TerminalObserveTool
 import com.apex.agent.platform.terminal.tools.v2.TerminalResizeTool
 import com.apex.agent.platform.terminal.tools.v2.TerminalRunTool
 import com.apex.agent.platform.terminal.tools.v2.TerminalSignalTool
 import com.apex.agent.platform.terminal.tools.v2.TerminalSnapshotTool
-import com.apex.agent.platform.terminal.tools.v2.TerminalUbuntuInstallTool
 import com.apex.agent.platform.terminal.tools.v2.TerminalWaitTool
-import com.apex.agent.platform.terminal.tools.v2.TerminalWorkspacesTool
-import com.apex.agent.platform.terminal.tools.v2.TerminalWorkspaceEnvironmentTool
 import com.apex.agent.platform.terminal.tools.v2.TerminalWriteTool
 import com.apex.agent.platform.terminal.runtime.TerminalRuntime
-import com.apex.agent.platform.terminal.ubuntu.RootfsProvisioner
-import com.apex.agent.platform.terminal.ubuntu.RootfsTarget
-import com.apex.agent.platform.terminal.ubuntu.UbuntuBootstrapManager
-import com.apex.agent.platform.terminal.health.LinuxEnvironmentHealth
-import com.apex.agent.platform.terminal.network.LinuxNetworkProbe
-import com.apex.agent.platform.terminal.pkg.LinuxPackageManager
 import com.apex.agent.core.engine.CommandPermissionGate
 import com.apex.agent.core.engine.UserQuestionBridge
 import com.apex.agent.core.engine.UserQuestionGateway
@@ -388,9 +373,6 @@ object ToolModule {
         httpClient: OkHttpClient,
         toolActivation: ToolActivationStore,
         terminalRuntime: TerminalRuntime,
-        rootfsProvisioner: RootfsProvisioner,
-        rootfsTarget: RootfsTarget,
-        workspaceManager: com.apex.agent.platform.terminal.workspace.LinuxWorkspaceManager,
         githubTokenManager: GithubTokenManager,
         githubApiService: GithubApiService,
         userQuestionGateway: UserQuestionGateway,
@@ -401,31 +383,9 @@ object ToolModule {
         // Issue #165：钩子注册表（主执行器插槽 + SubagentStop 派发）
         hookRegistry: HookRegistry,
         knowledgeBaseService: com.apex.agent.knowledge.KnowledgeBaseService,
-        // 任务后经验整理写入工具（MemoryConsolidateExperience / SaveFact / Graph）
         browserAgentTools: BrowserAgentTools,
         browserSessionTools: BrowserSessionTools,
         browserLayoutTools: com.apex.agent.platform.browser.BrowserLayoutTools,
-        // T76: Linux environment productionization 依赖
-        linuxEnvironmentHealth: LinuxEnvironmentHealth,
-        ubuntuBootstrapManager: UbuntuBootstrapManager,
-        linuxNetworkProbe: LinuxNetworkProbe,
-        linuxPackageManager: LinuxPackageManager,
-        linuxCapabilityProbe: com.apex.agent.platform.terminal.environment.LinuxCapabilityProbe,
-        environmentRepairService: com.apex.agent.platform.terminal.health.EnvironmentRepairService,
-        ubuntuLifecycle: com.apex.agent.platform.terminal.ubuntu.lifecycle.UbuntuLifecycleCoordinator,
-        // P83 (T4): 项目感知环境闭环（TerminalWorkspaceEnvironment 工具）
-        projectEnvironment: com.apex.agent.platform.terminal.environment.ProjectEnvironmentCoordinator,
-        // T82：guest fs API + apexctl 桥 + 镜像/ensure 接线（rootfsTarget 见上方 P83 区）
-        guestFilesystem: com.apex.agent.platform.TerminalFs.GuestFilesystem,
-        guestBridgeService: com.apex.agent.platform.TerminalBridge.GuestBridgeService,
-        ubuntuSourcesList: com.apex.agent.platform.terminal.ubuntu.UbuntuSourcesList,
-        rootfsBaseDir: java.io.File,
-        // P0 修复（用户反馈"Ubuntu 用不了/Shell 用不了"）：TerminalExec 的
-        // Ubuntu 沙箱通道依赖（ProotCommandSpawner）。
-        hostEnvironment: PRootHostEnvironment,
-        // T92（D5 完成度）：argv 能力源（两处 ProotCommandSpawner 的能力门输入）
-        capabilitySource: com.apex.agent.platform.terminal.proot.PRootCapabilitySource,
-        // 注：rootfsTarget 已在上方参数区声明（同一类型），本地与远端 CI 红修复同款合并去重
         // v2: MCP 三工具接线 + 风险门（HIGH 风险工具首次调用弹用户确认）+ 使用统计。
         riskAwareToolGate: RiskAwareToolGate,
         // v1.0 #155：权限模式门（与风险门合成 PermissionAwareToolGate 入链）。
@@ -458,16 +418,9 @@ object ToolModule {
     ): ToolRegistry {
         val registry = DefaultToolRegistry()
 
-        // P83 (T5) Workspace 统一：文件沙箱根迁移到 LinuxWorkspaceManager 的 default
-        // workspace（bind Ubuntu guest /workspace）—— Read/Write 与 terminal 看到同一份
-        // 文件；旧目录内容一次性搬入，解析失败诚实降级旧路径（工具仍可用，只是未统一）。
-        val flatLegacyDir = File(context.filesDir, "workspace")
-        val workspaceDir = runCatching {
-            workspaceManager.migrateFlatSandboxIfNeeded(flatLegacyDir)
-            workspaceManager
-                .resolve(com.apex.agent.platform.terminal.workspace.LinuxWorkspaceManager.DEFAULT_ID)
-                .getOrThrow()
-        }.getOrElse { File(context.filesDir, "workspace").apply { mkdirs() } }
+        // Theocracy：文件沙箱根 —— Android 本地目录（旧 LinuxWorkspaceManager 绑定
+        // 已随 Ubuntu/PRoot 栈移除；目录语义不变，Agent 读写与终端 cd 同根）。
+        val workspaceDir = File(context.filesDir, "workspace").apply { mkdirs() }
         val downloadDir = File(context.getExternalFilesDir(null), "Download").apply { mkdirs() }
 
         // ★ 工作目录记忆：兑现 ShellExecute "cd 后续命令保持同目录" 的承诺。
@@ -483,8 +436,7 @@ object ToolModule {
             val bypassCommandGate = settingsRepository.agentSettings.value.permissionMode ==
                 PermissionMode.BYPASS
             // v3：审批上下文 —— ShellExecute 恒走 Android 宿主（Root > Shizuku > 本地
-            // 通道运行时决定），与 TerminalExec 的 Ubuntu 沙箱形成明确视觉区分；
-            // 附带 cd 记忆目录，授权决策能看到命令将落在哪个根。
+            // 通道运行时决定）；附带 cd 记忆目录，授权决策能看到命令将落在哪个根。
             val shellExecContext = buildString {
                 append("Android 宿主 shell（Root > Shizuku > 本地）")
                 shellWorkDir.currentDir()?.let { append(" · 目录 ").append(it) }
@@ -583,40 +535,15 @@ object ToolModule {
         // 通道 Root > Shizuku > app-shell（PrivilegedCommandSpawner），双流分离采集 + waitpid 退出码。
         // 必须经 TerminalToolAdapter：TerminalExecTool 实现的是 platform:terminal 的 TerminalTool
         //（模块边界禁依赖 core:tool-registry 的 AgentTool），直塞 SafeAgentTool(AgentTool) 无法编译。
-        // P0：ExecEngine 接入 ProotCommandSpawner —— rootfs 就绪且非 Android 专有命令时路由进
-        // PRoot Ubuntu（python3/gcc/apt/git/npm 不再 not found）；未就绪/Android 命令回落 su >
-        // Shizuku > local-sh（与旧版一致）。cwd 映射与 bind 语义见 ProotCommandSpawner KDoc。
-        // v3：spawner 提升为局部 val —— 审批上下文需要 isAndroidOnlyCommand 与实际路由同源，
-        // 避免在 DI 层重写一份路由判定（两处口径漂移是路径错根问题的根源之一）。
-        val prootSpawner = ProotCommandSpawner(
-            hostEnvironment = hostEnvironment,
-            rootfsDir = rootfsBaseDir,
-            isRootfsReady = { File(rootfsBaseDir, "current").exists() },
-            defaultWorkspaceDir = File(context.filesDir, "linux/workspaces/default"),
-            persistentHomeDir = File(context.filesDir, "linux/home"),
-            fallback = PrivilegedCommandSpawner(),
-            // T92：argv 能力门（与终端会话/apt 同款版本自适应）
-            capabilities = capabilitySource::invoke,
-            // v3 S3（G2）：git/gh 命令凭据注入（未连接返回 null = 不注入）
-            gitHubTokenProvider = { githubTokenManager.getToken() }
-        )
+        // Theocracy：Ubuntu/PRoot 沙箱通道已随 Linux 栈移除 —— 恒走 Android 宿主链。
         registry.register(SafeAgentTool(TerminalToolAdapter(TerminalExecTool(
-            engine = ExecEngine(prootSpawner),
+            engine = ExecEngine(PrivilegedCommandSpawner()),
             approvalGate = { cmd, cwd ->
                 // 全自动模式（BYPASS）与 ShellExecute 同口径：跳过命令级确认门。
                 val bypassCommandGate = settingsRepository.agentSettings.value.permissionMode ==
                     PermissionMode.BYPASS
-                // v3：审批上下文 —— 与实际路由同源判定（rootfs 就绪 + 非 Android 专有
-                // → Ubuntu 沙箱；否则宿主 shell），并携带实际执行目录。
-                // 口径与 ProotCommandSpawner.resolveUbuntuRoute 一致（current 标记存在
-                // + 非 Android 专有命令），避免 DI 层第二套路由判定漂移。
-                val ubuntuRoute = File(rootfsBaseDir, "current").exists() &&
-                    !prootSpawner.isAndroidOnlyCommand(cmd)
                 val execContext = buildString {
-                    append(
-                        if (ubuntuRoute) "Ubuntu 沙箱（proot-ubuntu）"
-                        else "Android 宿主 shell（Root > Shizuku > 本地）"
-                    )
+                    append("Android 宿主 shell（Root > Shizuku > 本地）")
                     cwd?.let { append(" · 目录 ").append(it) }
                 }
                 if (bypassCommandGate || commandPermissionGate.ensureAllowed(cmd, execContext)) {
@@ -646,9 +573,8 @@ object ToolModule {
         // StreamingTerminalExecTool removed (§46 id collision); streaming = TerminalRun + TerminalObserve
 
         // ═══ 2. 文件操作 (7 + P83 补齐 Edit) ═══
-        // P83 (T5)：basePath 统一指向 default Linux workspace（见上方 workspaceDir 说明）
-        // —— Agent 写入的文件对 linux-ubuntu 会话可见（guest /workspace），
-        //   终端构建产物同样可被 Read/SearchFiles 读到。
+        // basePath 统一指向文件沙箱根（见上方 workspaceDir 说明）—— Agent
+        // 写入的文件与终端会话 cd 同根可互见。
         registry.register(SafeAgentTool(FileReadTool(workspaceDir)))
         registry.register(SafeAgentTool(FileWriteTool(workspaceDir)))
         registry.register(SafeAgentTool(ListFilesTool(workspaceDir)))
@@ -698,26 +624,14 @@ object ToolModule {
         registerTerminalPtyTools(registry, terminalRuntime, toolAuditLogger)
 
         // T87：终端栈自诊断（会话/后端/exec 探针自证 —— Agent 可先诊断后行动）。
-        // 探针与 TerminalExec 共用同一 ExecEngine/ProotCommandSpawner 构造参数
-        //（rootfs 就绪 → Ubuntu；否则回退 su>Shizuku>local-sh）—— 探到的就是
-        // Agent 实际会走的那条链路。
+        // 探针与 TerminalExec 共用同一 PrivilegedCommandSpawner 通道 —— 探到的
+        // 就是 Agent 实际会走的那条链路（root-su > shizuku > local-sh）。
         registry.register(SafeAgentTool(TerminalToolAdapter(
             TerminalDiagnosticsTool(
                 runtime = terminalRuntime,
                 execProbe = { cmd ->
                     runCatching {
-                        val probeEngine = ExecEngine(ProotCommandSpawner(
-                            hostEnvironment = hostEnvironment,
-                            rootfsDir = rootfsBaseDir,
-                            isRootfsReady = { File(rootfsBaseDir, "current").exists() },
-                            defaultWorkspaceDir = File(context.filesDir, "linux/workspaces/default"),
-                            persistentHomeDir = File(context.filesDir, "linux/home"),
-                            fallback = PrivilegedCommandSpawner(),
-                            // T92：argv 能力门（探针与 TerminalExec 同款链路同款能力源）
-                            capabilities = capabilitySource::invoke,
-                            // v3 S3（G2）：与 TerminalExec 同链路同凭据（探到的即真实行为）
-                            gitHubTokenProvider = { githubTokenManager.getToken() }
-                        ))
+                        val probeEngine = ExecEngine(PrivilegedCommandSpawner())
                         val result = probeEngine.execute(
                             com.apex.agent.platform.TerminalExec.ExecRequest(
                                 command = cmd,
@@ -729,51 +643,10 @@ object ToolModule {
                 }
             )
         )))
-        registry.register(SafeAgentTool(TerminalToolAdapter(
-            TerminalUbuntuInstallTool(rootfsProvisioner, rootfsTarget)
-        )))
-        // T75: workspace 管理（list/create/inspect/delete —— 隔离文件区生命周期）。
-        registry.register(SafeAgentTool(TerminalToolAdapter(TerminalWorkspacesTool(workspaceManager))))
-        // P83 (T4): 项目感知开发环境 —— analyze（只读）/ ensure（Ubuntu 就绪 + 按项目补装工具链）。
-        registry.register(SafeAgentTool(TerminalToolAdapter(TerminalWorkspaceEnvironmentTool(projectEnvironment))))
-        // T76: Ubuntu Linux Environment Productionization —— 4 个 Agent 工具
-        //   TerminalLinuxStatus    统一健康快照（6 维度 + bootstrap）
-        //   TerminalLinuxBootstrap  rootfs→sources→network→apt-update→base-packages→READY
-        //   TerminalLinuxNetwork    DNS/HTTP/HTTPS/APT_REPOSITORY 分维诊断
-        //   TerminalLinuxPackages   结构化 apt API（update/install/remove/upgrade/search/...）
-        registry.register(SafeAgentTool(TerminalToolAdapter(TerminalLinuxStatusTool(linuxEnvironmentHealth))))
-        registry.register(SafeAgentTool(TerminalToolAdapter(TerminalLinuxBootstrapTool(ubuntuBootstrapManager))))
-        registry.register(SafeAgentTool(TerminalToolAdapter(TerminalLinuxNetworkTool(linuxNetworkProbe))))
-        // T82：镜像（mirror list/set）+ 真实 installed 列表 + autoremove/clean。
-        registry.register(SafeAgentTool(TerminalToolAdapter(
-            TerminalLinuxPackagesTool(
-                packageManager = linuxPackageManager,
-                sources = ubuntuSourcesList,
-                rootfsDir = { rootfsBaseDir.takeIf { it.isDirectory } },
-                arch = { rootfsTarget.architecture }
-            )
-        )))
-        // T81: 环境能力真实探测（§29）+ 单轮自动修复编排（§30）
-        // T82：ensure action（probe → install missing → re-probe 一发式工具链供给）。
-        registry.register(SafeAgentTool(TerminalToolAdapter(
-            com.apex.agent.platform.terminal.tools.v2.TerminalLinuxCapabilitiesTool(
-                probe = linuxCapabilityProbe,
-                packages = linuxPackageManager
-            ))))
-        registry.register(SafeAgentTool(TerminalToolAdapter(
-            com.apex.agent.platform.terminal.tools.v2.TerminalLinuxRepairTool(environmentRepairService))))
-        // T82: Ubuntu 产品级生命周期 —— 一键 ensure（install→bootstrap→capability
-        // 聚合入口，替代 Agent 三次调用三套状态机的编排负担）+ 只读 status 快照。
-        registry.register(SafeAgentTool(TerminalToolAdapter(
-            com.apex.agent.platform.terminal.tools.v2.TerminalUbuntuEnsureTool(ubuntuLifecycle))))
-        registry.register(SafeAgentTool(TerminalToolAdapter(
-            com.apex.agent.platform.terminal.tools.v2.TerminalUbuntuStatusTool(ubuntuLifecycle))))
-        // T82: Terminal 全能力增强 —— guest 结构化文件 API（写沙箱 + base64 二进制
-        // 安全）与 apexctl Android 能力桥（guest 脚本与 Agent 共用同一 handler 集）。
-        registry.register(SafeAgentTool(TerminalToolAdapter(
-            com.apex.agent.platform.terminal.tools.v2.TerminalFsTool(guestFilesystem))))
-        registry.register(SafeAgentTool(TerminalToolAdapter(
-            com.apex.agent.platform.terminal.tools.v2.TerminalBridgeTool(guestBridgeService))))
+        // Theocracy：Ubuntu/PRoot 栈已整体移除 —— TerminalUbuntuInstall /
+        // TerminalWorkspaces / TerminalWorkspaceEnvironment / TerminalLinux*
+        //（Status/Bootstrap/Network/Packages/Capabilities/Repair）/
+        // TerminalUbuntuEnsure/Status / TerminalFs / TerminalBridge 随域删除。
         // 4 legacy compat aliases (@Deprecated, Spec §35) — old tool ids preserved for backward compat.
         registry.register(SafeAgentTool(TerminalToolAdapter(LegacyExecTool(terminalRuntime))))
         registry.register(SafeAgentTool(TerminalToolAdapter(LegacySendTool(terminalRuntime))))

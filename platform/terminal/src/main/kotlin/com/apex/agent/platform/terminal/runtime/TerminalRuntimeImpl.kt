@@ -54,15 +54,16 @@ import kotlinx.coroutines.cancel
  * Spec ref: ATR 2.0 Final Spec §6.1 / §33 / §34
  *
  * T73: create() 统一经 [ExecutionBackendRegistry] 路由 —— backendId="local" 走
- * LocalShellBackend（与旧硬编码 spawn 逐字节一致，ExecutionBackendGoldenTest 锁定），
- * backendId="linux-ubuntu" 走 LinuxPRootBackend（forkpty → proot → Ubuntu bash）。
+ * LocalShellBackend（与旧硬编码 spawn 逐字节一致，ExecutionBackendGoldenTest 锁定）。
+ * （历史：backendId="linux-ubuntu" 的 PRoot/Ubuntu 后端已随 Linux 栈剥离移除，
+ * 接缝保留 —— 新后端注册进 Registry 即可被同一链路路由。）
  * 会话的后端元数据进 TerminalSession.backend 并持久化（SessionRecord schema v2）。
  *
  * Construction (Hilt in real repo; manual here):
  *   val runtime = TerminalRuntimeImpl(
  *       native = FakeNativePty() or JniNativePty(),
  *       policy = TerminalPolicyImpl(),
- *       backendRegistry = ExecutionBackendRegistry.of(LocalShellBackend(), linuxBackend),
+ *       backendRegistry = ExecutionBackendRegistry.of(LocalShellBackend()),
  *       virtualTerminalFactory = { r, c -> RealVirtualTerminal(r, c) }   // Phase 2: real VT
  *   )
  *
@@ -89,17 +90,6 @@ class TerminalRuntimeImpl(
     private val pumpScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
     /** Optional persistence (Spec §39). If set, auto-saves session metadata + enables recover(). */
     private val persistenceStore: SessionMetadataStore? = null,
-    /**
-     * T75: 会话 ↔ workspace 绑定钩子（LINUX 会话）。create 成功后 bind、
-     * close 成功后 unbind —— LinuxWorkspaceManager 的活跃计数由此驱动
-     * （delete 拒绝有活跃会话的 workspace）。生产 DI 注入；测试可传 fake。
-     */
-    private val workspaceBinder: com.apex.agent.platform.terminal.workspace.SessionWorkspaceBinder? = null,
-    /**
-     * T81 (U-10)：rootfs 活跃会话绑定（LINUX 会话创建/关闭维护引用计数 ——
-     * provisioner.remove() 的活跃保护由此驱动，原 markInUse 生产零调用）。
-     */
-    private val rootfsBinder: com.apex.agent.platform.terminal.ubuntu.RootfsUsageBinder? = null,
     /**
      * T82 — Shell Marker Protocol 总开关（真实退出码）。默认 false（历史测试行为
      * 不变）；生产 DI（TerminalModule）传 true。开启后 job 命令携带 OSC 633
@@ -214,8 +204,8 @@ class TerminalRuntimeImpl(
         if (shutdownGate.get()) {
             return Result.failure(com.apex.agent.platform.terminal.errors.TerminalOperationException(com.apex.agent.platform.terminal.errors.TerminalError.UnsupportedOperation, "runtime 已 shutdown"))
         }
-        // T73: 后端路由。local 默认 —— 与历史行为一致（golden）；
-        // linux-ubuntu —— 失败时给出可行动错误（引导 Agent 先装 rootfs）。
+        // T73: 后端路由。local 默认 —— 与历史行为一致（golden）；未注册的 id
+        // 显式失败（可用后端清单随错误返回）。
         val backend = backendRegistry.get(backendId)
             ?: return Result.failure(
                 RuntimeException(
@@ -223,23 +213,18 @@ class TerminalRuntimeImpl(
                         backendRegistry.list().joinToString(", ") { it.id } + "）"
                 )
             )
-        // T75: workspace 是 LINUX 后端概念 —— LOCAL 会话拒绝（显式报错优于静默忽略）。
-        if (!workspaceId.isNullOrBlank() && backend.runtimeType != BackendRuntimeType.LINUX) {
+        // T75: workspace 是 LINUX 后端概念（历史）—— 现仅 local 后端，显式拒绝
+        //（优于静默忽略；接缝保留，未来新后端可自行解禁）。
+        if (!workspaceId.isNullOrBlank()) {
             return Result.failure(
                 IllegalArgumentException(
                     "TerminalError:InvalidInput — workspaceId 仅支持 LINUX 后端" +
-                        "（当前 backend='${backend.id}'）。workspace 管理见 TerminalWorkspaces。"
+                        "（当前 backend='${backend.id}'）。"
                 )
             )
         }
         when (val av = backend.availability()) {
             is BackendAvailability.Ready -> Unit
-            is BackendAvailability.NeedsRootfs -> return Result.failure(
-                RuntimeException(
-                    "TerminalError:RootfsNotReady — backend '${backend.id}' 需要 Ubuntu rootfs" +
-                        "（state=${av.state}）。先用 TerminalUbuntuInstall 离线解包内置 rootfs，再重试 create。"
-                )
-            )
             is BackendAvailability.Failed -> return Result.failure(
                 RuntimeException(
                     "TerminalError:BackendFailed — backend '${backend.id}' 不可用: ${av.reason}"
@@ -252,12 +237,9 @@ class TerminalRuntimeImpl(
             workspaceId = workspaceId
         )
         val spec = backend.prepare(request).getOrElse { e ->
-            // T95：prepare 失败根因保真 —— 旧版一律包成 PtyUnavailable，
-            // 「RootfsNotReady / PRootError:*」被降维，真因（多为裸
-            // FileNotFoundException，message 只剩一条路径）被「Pty 不可用」
-            // 误导。现在：已带 TerminalError 语义的异常原样透传；未知异常
-            // 补上异常类名再包（用户反馈：「backend prepare failed:
-            // /data/user/0/com…」看不出哪里坏了）。
+            // T95：prepare 失败根因保真 —— 旧版一律包成 PtyUnavailable，真因被
+            // 「Pty 不可用」误导。现在：已带 TerminalError 语义的异常原样透传；
+            // 未知异常补上异常类名再包。
             val failure: Throwable = if (e.asTerminalError() != null) {
                 e
             } else {
@@ -271,16 +253,6 @@ class TerminalRuntimeImpl(
         }
         val r = sessionManager.createFromSpec(spec, rows, cols, privilege)
         return r.map { s ->
-            // T75: LINUX 会话创建成功 → 绑定 workspace（活跃计数；delete 门禁）
-            spec.metadata.workspaceId?.let { wsId -> workspaceBinder?.bind(s.id, wsId) }
-            // P2 fix（审计 P2-1 / T81 U-10）：LINUX/proot 会话创建成功 → 绑定 rootfs
-            // 引用（与 close() 的 unbind 对称）。原实现 bind 全工程零调用 ——
-            // RootfsProvisionerImpl.remove() 的活跃会话保护是死代码，运行中的
-            // LINUX 会话 rootfs 可被整删（会话立即变僵尸）。仅 LINUX 后端绑
-            //（LOCAL 会话不占 rootfs）。
-            if (backend.runtimeType == BackendRuntimeType.LINUX) {
-                rootfsBinder?.bind(s.id)
-            }
             // start a JobManager listener for this session
             startSessionListener(s.id)
             // Register the session's process group (v1: pgid == shell pid — forkpty makes the
@@ -293,7 +265,6 @@ class TerminalRuntimeImpl(
                 state = s.state.name, cursor = s.cursor,
                 backendId = backend.id,
                 runtimeType = backend.runtimeType.name,
-                rootfsId = s.backend?.rootfsId,
                 guestCwd = s.backend?.guestCwd,
                 workspaceId = s.backend?.workspaceId
             )
@@ -307,11 +278,6 @@ class TerminalRuntimeImpl(
                 is BackendAvailability.Ready -> TerminalRuntime.BackendStatus(
                     id = b.id, runtimeType = b.runtimeType.name,
                     available = true, state = "READY", detail = null
-                )
-                is BackendAvailability.NeedsRootfs -> TerminalRuntime.BackendStatus(
-                    id = b.id, runtimeType = b.runtimeType.name,
-                    available = false, state = "NEEDS_ROOTFS:${av.state}",
-                    detail = "Ubuntu rootfs 未就绪 —— 调用 TerminalUbuntuInstall 解包内置档案后重试（离线，完整环境约 2~5 分钟）"
                 )
                 is BackendAvailability.Failed -> TerminalRuntime.BackendStatus(
                     id = b.id, runtimeType = b.runtimeType.name,
@@ -556,14 +522,10 @@ class TerminalRuntimeImpl(
             // 二轮审计 C-1：会话关闭 → 清理 JobManager 的 job 记录/状态流/前台标记
             //（原实现只增不减，常驻服务进程下无上限累积）。
             jobManager.drop(sessionId)
-            // T75: 会话关闭 → 释放 workspace 活跃绑定（delete 门禁解除）
-            workspaceBinder?.unbind(sessionId)
             // T81 (D-4)：只收敛本 session 的超时定时器 —— 原实现调
             // timeoutController.cancelAll()（全局），关 session A 会误杀
             // session B/C 的 job 超时定时器。
             timeoutController.cancelSession(sessionId)
-            // T81 (U-10)：解除 rootfs 引用（LINUX 会话；remove 门禁解除）
-            rootfsBinder?.unbind(sessionId)
             // T82：回收 marker 解析器（per-session 状态不随 close 泄漏）。
             markerParsers.remove(sessionId)
             // T81：close 后同步删除持久化记录（§39 语义：CLOSED → 不再保留；

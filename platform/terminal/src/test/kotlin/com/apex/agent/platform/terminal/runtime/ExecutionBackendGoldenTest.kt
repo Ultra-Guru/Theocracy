@@ -100,9 +100,9 @@ class ExecutionBackendGoldenTest {
 
     @Test
     fun `registry resolves by id and defaults to local`() {
-        val registry = ExecutionBackendRegistry.of(backend, StubBackend("linux-ubuntu"))
+        val registry = ExecutionBackendRegistry.of(backend, StubBackend("stub-alt"))
         assertEquals(LocalShellBackend.ID, registry.default.id)
-        assertEquals("linux-ubuntu", registry.get("linux-ubuntu")?.id)
+        assertEquals("stub-alt", registry.get("stub-alt")?.id)
         assertNull(registry.get("missing"))
         assertEquals(2, registry.list().size)
     }

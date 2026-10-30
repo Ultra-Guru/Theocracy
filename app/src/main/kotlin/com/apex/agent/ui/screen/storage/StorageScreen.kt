@@ -23,7 +23,6 @@ import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -57,18 +56,17 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apex.agent.R
-import com.apex.agent.platform.terminal.ubuntu.lifecycle.UbuntuLifecycleCoordinator
 import com.apex.agent.ui.screen.terminal.formatBytes
 import kotlinx.coroutines.delay
 
 /**
  * 存储与数据管理页（抽屉「存储」目的地）。
  *
- * 四个区块（全部真实数据源）：
+ * 三个区块（全部真实数据源）：
  *  1. 附件沙箱 —— AttachmentCleanupManager 用量/清理；
- *  2. Ubuntu rootfs —— 环境占用/删除（用户数据保留说明）；
- *  3. 会话历史 —— 全局对话条数/导出（文本分享）/清空；
- *  4. 运行日志 —— 条数/内存占用，跳转日志页由用户自行导出。
+ *  2. 会话历史 —— 全局对话条数/导出（文本分享）/清空；
+ *  3. 运行日志 —— 条数/内存占用，跳转日志页由用户自行导出。
+ * （历史：Ubuntu rootfs 占用/删除卡已随 Ubuntu/PRoot 栈剥离移除。）
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -154,45 +152,7 @@ fun StorageScreen(
                 )
             }
 
-            // ═══ 2. Ubuntu 环境 ═══
-            StorageCard(
-                icon = Icons.Default.Terminal,
-                title = stringResource(R.string.storage_ubuntu_title),
-                tint = MaterialTheme.colorScheme.tertiary
-            ) {
-                val installed = state.rootfsPhase != UbuntuLifecycleCoordinator.Phase.NOT_INSTALLED
-                StorageMetricRow(
-                    stringResource(R.string.storage_status),
-                    when (state.rootfsPhase) {
-                        UbuntuLifecycleCoordinator.Phase.NOT_INSTALLED -> stringResource(R.string.storage_rootfs_not_installed)
-                        UbuntuLifecycleCoordinator.Phase.READY -> stringResource(R.string.storage_rootfs_ready)
-                        UbuntuLifecycleCoordinator.Phase.FAILED -> stringResource(R.string.storage_rootfs_failed)
-                        else -> state.rootfsPhase.name
-                    }
-                )
-                StorageMetricRow(
-                    stringResource(R.string.storage_space_used),
-                    state.rootfsSize?.let { formatBytes(it) }
-                        ?: if (installed) stringResource(R.string.storage_calculating) else "—"
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedButton(
-                    onClick = { confirmAction = "rootfs" },
-                    enabled = !state.busy && installed,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Default.Delete, null, Modifier.size(15.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(stringResource(R.string.storage_delete_ubuntu), color = MaterialTheme.colorScheme.error)
-                }
-                Text(
-                    stringResource(R.string.storage_ubuntu_desc),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            // ═══ 3. 会话历史 ═══
+            // ═══ 2. 会话历史 ═══
             StorageCard(
                 icon = Icons.Default.Chat,
                 title = stringResource(R.string.storage_conversation_history),
@@ -221,7 +181,7 @@ fun StorageScreen(
                 )
             }
 
-            // ═══ 4. 运行日志 ═══
+            // ═══ 3. 运行日志 ═══
             StorageCard(
                 icon = Icons.Default.Info,
                 title = stringResource(R.string.storage_log_title),
@@ -268,19 +228,12 @@ fun StorageScreen(
 
     // ═══ 破坏性操作二次确认 ═══
     if (confirmAction != null) {
-        // i18n：约 1GB 回退文案（格式化参数在 when 内两处使用，上提取词）
-        val aboutOneGb = stringResource(R.string.storage_about_1gb)
         val (title, text) = when (confirmAction) {
             "attachments" -> stringResource(R.string.storage_confirm_attachments_title) to
                 stringResource(
                     R.string.storage_confirm_attachments_text,
                     state.attachmentsCount,
                     formatBytes(state.attachmentsSize)
-                )
-            "rootfs" -> stringResource(R.string.storage_confirm_rootfs_title) to
-                stringResource(
-                    R.string.storage_confirm_rootfs_text,
-                    state.rootfsSize?.let { formatBytes(it) } ?: aboutOneGb
                 )
             else -> stringResource(R.string.storage_confirm_conversation_title) to
                 stringResource(R.string.storage_confirm_conversation_text, state.conversationCount)
@@ -293,7 +246,6 @@ fun StorageScreen(
                 TextButton(onClick = {
                     when (confirmAction) {
                         "attachments" -> viewModel.clearAttachments()
-                        "rootfs" -> viewModel.removeRootfs()
                         "conversation" -> viewModel.clearConversation()
                     }
                     confirmAction = null

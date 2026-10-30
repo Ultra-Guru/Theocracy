@@ -64,7 +64,7 @@ class RawStreamSanitizerTest {
     @Test
     fun `prompt tails dropped at finish`() {
         val mkshPrompt = "user@android:/data $ "
-        val bashPrompt = "root@ubuntu:~# "
+        val bashPrompt = "root@localhost:~# "
         val zshPrompt = "% "
         RawStreamSanitizer(expectedEcho = null).let { s ->
             s.feed("out\n")

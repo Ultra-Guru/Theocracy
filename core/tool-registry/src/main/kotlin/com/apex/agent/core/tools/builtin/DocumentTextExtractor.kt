@@ -99,7 +99,7 @@ object DocumentTextExtractor {
                     ?: return Extraction(
                         emptyList(),
                         "DOCX 解压后内容超过 ${MAX_DOCX_XML_BYTES / (1024 * 1024)}MB 预算（疑似 zip 炸弹或超大文档）——" +
-                            "已停止读取。建议在 Ubuntu 终端用 pandoc/libreoffice 分段转换，或仅提取需要的部分"
+                            "已停止读取。建议仅提取需要的部分，或在电脑上用 pandoc/libreoffice 分段转换后再给我"
                     )
                 val text = extractTextFromDocxXml(xml)
                 if (text.isEmpty()) {
@@ -365,7 +365,7 @@ object DocumentTextExtractor {
         if (cleaned.isBlank()) {
             return Extraction(
                 emptyList(),
-                "PDF 无可提取文本（可能是扫描图片型 PDF 或仅含图形）—— 建议在 Ubuntu 终端安装 poppler-utils 后用 pdftotext 转换，或直接把文字粘贴给我"
+                "PDF 无可提取文本（可能是扫描图片型 PDF 或仅含图形）—— 建议在电脑上用 pdftotext 转换，或直接把文字粘贴给我"
             )
         }
         // CID 乱码检测：私有使用区/控制符占比过高 → 判定编码不可解
@@ -375,7 +375,7 @@ object DocumentTextExtractor {
         return if (ratio > 0.25f) {
             Extraction(
                 lines,
-                "PDF 使用内嵌 CID 字体（常见于中文导出），直解得到字形编码而非文字 —— 请在 Ubuntu 终端安装 poppler-utils 后用 pdftotext 提取，或提供文本版文件"
+                "PDF 使用内嵌 CID 字体（常见于中文导出），直解得到字形编码而非文字 —— 请在电脑上用 pdftotext 提取，或提供文本版文件"
             )
         } else {
             Extraction(lines, null)

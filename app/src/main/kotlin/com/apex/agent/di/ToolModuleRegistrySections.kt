@@ -35,7 +35,7 @@ internal fun registerTerminalPtyTools(
     registry.register(SafeAgentTool(TerminalToolAdapter(auditedTerminalTool(toolAuditLogger, TerminalResizeTool(terminalRuntime)))))
     registry.register(SafeAgentTool(TerminalToolAdapter(auditedTerminalTool(toolAuditLogger, TerminalSnapshotTool(terminalRuntime)))))
     registry.register(SafeAgentTool(TerminalToolAdapter(auditedTerminalTool(toolAuditLogger, TerminalCloseTool(terminalRuntime)))))
-    // T73: 后端能力发现 + Ubuntu rootfs 安装引导（Agent 自主进入 Ubuntu 的入口）。
+    // T73: 后端能力发现（Theocracy 仅 local 后端；Ubuntu 安装引导随 Linux 栈移除）。
     registry.register(SafeAgentTool(TerminalToolAdapter(TerminalBackendsTool(terminalRuntime))))
 }
 

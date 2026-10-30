@@ -9,7 +9,6 @@ import com.apex.agent.attachment.AttachmentCleanupManager
 import com.apex.agent.core.engine.ConversationMemory
 import com.apex.agent.core.logging.AppLogger
 import com.apex.agent.di.FileContextArchive
-import com.apex.agent.platform.terminal.ubuntu.lifecycle.UbuntuLifecycleCoordinator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -26,8 +25,9 @@ import javax.inject.Inject
  * 存储与数据管理页 ViewModel。
  *
  * T76 审计 §7 缺口补齐：AttachmentCleanupManager 的存储用量/清理 API 此前只有
- * WorkManager 周期自清在调用，无用户入口；Ubuntu rootfs（完整环境，~1GB）无删除入口；
- * 全局会话历史（apex_memory: conversation_history）无导出/管理页 —— 本页统一承接。
+ * WorkManager 周期自清在调用，无用户入口；全局会话历史（apex_memory:
+ * conversation_history）无导出/管理页 —— 本页统一承接。（历史：Ubuntu rootfs
+ * 管理（占用/删除）已随 Ubuntu/PRoot 栈剥离移除。）
  */
 @HiltViewModel
 class StorageViewModel @Inject constructor(
@@ -35,8 +35,7 @@ class StorageViewModel @Inject constructor(
     private val attachmentCleanup: AttachmentCleanupManager,
     private val conversationMemory: ConversationMemory,
     // #396：会话归档随「清空会话历史」一并清空（防孤儿归档被检索工具读到）。
-    private val contextArchive: FileContextArchive,
-    private val ubuntuLifecycle: UbuntuLifecycleCoordinator
+    private val contextArchive: FileContextArchive
 ) : ViewModel() {
 
     data class UiState(
@@ -44,11 +43,9 @@ class StorageViewModel @Inject constructor(
         val attachmentsSize: Long = 0L,
         val attachmentsCount: Int = 0,
         val conversationCount: Int = 0,
-        val rootfsSize: Long? = null,
-        val rootfsPhase: UbuntuLifecycleCoordinator.Phase = UbuntuLifecycleCoordinator.Phase.NOT_INSTALLED,
         val logCount: Int = 0,
         val logBytes: Long = 0L,
-        /** 破坏性操作进行中（清附件/清会话/删 rootfs）。 */
+        /** 破坏性操作进行中（清附件/清会话）。 */
         val busy: Boolean = false,
         /** 结果反馈（UI 消费后调 consumeMessage）。 */
         val message: String? = null
@@ -69,8 +66,6 @@ class StorageViewModel @Inject constructor(
             val convCount = withContext(Dispatchers.Default) {
                 runCatching { conversationMemory.count() }.getOrDefault(0)
             }
-            val rootfsSize = ubuntuLifecycle.rootfsSizeBytes()
-            val rootfsPhase = ubuntuLifecycle.stateFlow.value.phase
             val logStats = AppLogger.instance.stats.value
             _uiState.update {
                 it.copy(
@@ -78,8 +73,6 @@ class StorageViewModel @Inject constructor(
                     attachmentsSize = attSize,
                     attachmentsCount = attCount,
                     conversationCount = convCount,
-                    rootfsSize = rootfsSize,
-                    rootfsPhase = rootfsPhase,
                     logCount = logStats.total,
                     logBytes = logStats.totalBytes
                 )
@@ -172,29 +165,6 @@ class StorageViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 _uiState.update { it.copy(message = "导出失败：${e.message?.take(80)}") }
-            }
-        }
-    }
-
-    /** 删除 Ubuntu rootfs（破坏性 —— UI 二次确认后调用；用户数据保留）。 */
-    fun removeRootfs() {
-        viewModelScope.launch {
-            _uiState.update { it.copy(busy = true) }
-            // T84：IO —— 删除 1GB+ 版本目录是重 IO，Main 调用必 ANR。
-            val (r, rootfsSize, phase) = withContext(Dispatchers.IO) {
-                Triple(
-                    ubuntuLifecycle.removeRootfs(),
-                    ubuntuLifecycle.rootfsSizeBytes(),
-                    ubuntuLifecycle.stateFlow.value.phase
-                )
-            }
-            _uiState.update {
-                it.copy(
-                    busy = false,
-                    message = r.message,
-                    rootfsSize = rootfsSize,
-                    rootfsPhase = phase
-                )
             }
         }
     }

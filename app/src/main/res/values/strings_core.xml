@@ -446,14 +446,6 @@
     <string name="storage_unit_files">%1$d</string>
     <string name="storage_clear_attachments">Clear attachments</string>
     <string name="storage_attachments_desc">Local cache of chat attachments; after clearing, attachment previews in history become unavailable (Agent-side file references break).</string>
-    <string name="storage_ubuntu_title">Ubuntu environment (rootfs, built-in)</string>
-    <string name="storage_status">Status</string>
-    <string name="storage_rootfs_not_installed">Not unpacked</string>
-    <string name="storage_rootfs_ready">Ready</string>
-    <string name="storage_rootfs_failed">Error</string>
-    <string name="storage_calculating">Calculating…</string>
-    <string name="storage_delete_ubuntu">Delete Ubuntu environment (keeps user data)</string>
-    <string name="storage_ubuntu_desc">Removes the unpacked rootfs and unpack cache; guest /root user data and workspace are kept — unpack offline again to restore. Full management (unpack/repair) is in the Environment Center on the Terminal page.</string>
     <string name="storage_conversation_history">Chat history</string>
     <string name="storage_messages">Messages</string>
     <string name="storage_unit_msgs">%1$d</string>
@@ -466,9 +458,6 @@
     <string name="storage_log_desc">Logs live in an in-memory ring buffer (released when the app restarts); view and export them on the Logs page.</string>
     <string name="storage_confirm_attachments_title">Clear attachments?</string>
     <string name="storage_confirm_attachments_text">This will delete all %1$d attachment files (%2$s). This cannot be undone.</string>
-    <string name="storage_confirm_rootfs_title">Delete the Ubuntu environment?</string>
-    <string name="storage_confirm_rootfs_text">This will delete the unpacked rootfs (%1$s) and the unpack cache; the built-in package ships with the APK and can be unpacked offline again anytime; user data (/root, workspace) is kept.</string>
-    <string name="storage_about_1gb">~1 GB</string>
     <string name="storage_confirm_conversation_title">Clear chat history?</string>
     <string name="storage_confirm_conversation_text">This will delete all %1$d messages; the Agent\'s context starts from zero. Export a backup first.</string>
     <string name="storage_confirm">Confirm</string>
@@ -669,8 +658,8 @@
     <string name="onboarding_welcome_desc">Chat-driven · real terminal · 100+ tools\nThe agent gets work done right on your phone</string>
     <string name="onboarding_cap_agent_title">Conversational agent</string>
     <string name="onboarding_cap_agent_desc">Multi-model access, plan confirmation, tool orchestration — executes complex tasks step by step and reports back</string>
-    <string name="onboarding_cap_terminal_title">Ubuntu terminal</string>
-    <string name="onboarding_cap_terminal_desc">A real Linux environment on your phone: apt packages, bash scripts, a full filesystem (rootfs ships inside the APK — works offline)</string>
+    <string name="onboarding_cap_terminal_title">Local terminal</string>
+    <string name="onboarding_cap_terminal_desc">A real Android local shell on your phone: PTY sessions, mksh + toybox commands, no setup needed</string>
     <string name="onboarding_cap_market_title">Skills &amp; marketplace</string>
     <string name="onboarding_cap_market_desc">100+ built-in tools on demand; the skill marketplace keeps expanding the Agent\'s capabilities</string>
     <!-- v1.5：浏览器自动化能力卡（内置大功能，Onboarding 页 2） -->
@@ -717,7 +706,7 @@
     <string name="onboarding_final_title">One last step</string>
     <string name="onboarding_ready_desc">After that, enter your API key under \"Settings → Model configuration\"\n(OpenAI / Anthropic / compatible endpoints)\nso the Agent can start thinking</string>
     <string name="onboarding_quickstart_title">Quick start</string>
-    <string name="onboarding_quickstart_steps">1 · Open \"Settings\" from the drawer and configure a model\n2 · Back on the Agent chat page, send your first message\n3 · Try offline-unpacking the built-in Ubuntu on the \"Terminal\" page\n4 · Let the Agent install packages, run scripts and edit files for you</string>
+    <string name="onboarding_quickstart_steps">1 · Open \"Settings\" from the drawer and configure a model\n2 · Back on the Agent chat page, send your first message\n3 · Try real shell commands on the \"Terminal\" page\n4 · Let the Agent run commands, manage files and automate tasks for you</string>
 
     <!-- ═══ Foreground service notification (ApexCoreService) ═══ -->
     <string name="core_notif_channel_name">Apex Agent service</string>
@@ -735,7 +724,7 @@
     <string name="about_section_highlights">Highlights in this build</string>
     <string name="about_highlight_1">Browser agent: full in-app browser with page understanding and multi-tab automation</string>
     <string name="about_highlight_2">Coding desk: real-folder workspaces, built-in Git, and terminal output inline in the stream</string>
-    <string name="about_highlight_3">Ubuntu terminal rewritten: VT engine, CSI compatibility and stable CJK IME input</string>
+    <string name="about_highlight_3">Terminal rewritten: native VT engine, CSI compatibility and stable CJK IME input</string>
     <string name="about_highlight_4">Dual thinking system: native model effort + seven self-hosted tiers with deep-water auto-escalation</string>
     <string name="about_easter_egg_toast">You found the fireworks!</string>
     <string name="about_highlights_hint">Tap the robot at the bottom of this page five times</string>
@@ -826,8 +815,8 @@
     <string name="about_feature_agent_desc">Multi-level thinking, tool orchestration, skills and chat memory</string>
     <string name="about_feature_coding_title">Coding mode</string>
     <string name="about_feature_coding_desc">Dedicated coding engine + real-folder workspaces (file tree / Git changes / terminal)</string>
-    <string name="about_feature_terminal_title">Ubuntu terminal</string>
-    <string name="about_feature_terminal_desc">Full Ubuntu 24.04 CLI with a PRoot sandbox bundled in the APK — works offline</string>
+    <string name="about_feature_terminal_title">Local terminal</string>
+    <string name="about_feature_terminal_desc">A real Android local shell (mksh + toybox) over a native PTY/VT engine — zero setup</string>
     <string name="about_feature_market_title">Skill market</string>
     <string name="about_feature_market_desc">Install skills, MCP servers and plugins on demand</string>
     <string name="about_feature_vault_title">Encrypted vault</string>

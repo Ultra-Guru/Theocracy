@@ -33,7 +33,7 @@ class SessionSpawnErrorTest {
     @Test
     fun `exec failure surfaces structured ExecFailed error at create`() = runBlocking {
         val fake = FakeNativePty()
-        fake.pendingSpawnFailure = "execv(/nonexistent/proot) failed: No such file or directory"
+        fake.pendingSpawnFailure = "execv(/nonexistent/spawn-bin) failed: No such file or directory"
         val runtime = newRuntime(fake)
 
         val result = runtime.create(backendId = "local")
@@ -42,7 +42,7 @@ class SessionSpawnErrorTest {
         val msg = result.exceptionOrNull()?.message ?: ""
         assertTrue("错误码必须是 ExecFailed（实际: $msg）", msg.contains("TerminalError:ExecFailed"))
         assertTrue("错误必须带确切 exec 原因（实际: $msg）", msg.contains("No such file or directory"))
-        assertTrue("错误必须带 argv0 上下文（实际: $msg）", msg.contains("/nonexistent/proot"))
+        assertTrue("错误必须带 argv0 上下文（实际: $msg）", msg.contains("/nonexistent/spawn-bin"))
     }
 
     @Test

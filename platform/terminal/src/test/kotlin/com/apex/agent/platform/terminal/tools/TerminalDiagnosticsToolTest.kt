@@ -56,10 +56,10 @@ class TerminalDiagnosticsToolTest {
         override suspend fun recoveredSnapshot(sessionId: Long): TerminalSemanticState? = null
     }
 
-    private fun semantic(id: Long, state: SessionState, shell: String = "/bin/bash"): TerminalSemanticState =
+    private fun semantic(id: Long, state: SessionState, shell: String = "/system/bin/sh"): TerminalSemanticState =
         TerminalSemanticState(
             session = SessionSnapshot(
-                id = id, shell = shell, cwd = "/workspace", privilege = PrivilegeLevel.NORMAL,
+                id = id, shell = shell, cwd = "/sdcard", privilege = PrivilegeLevel.NORMAL,
                 state = state, pid = 1000 + id.toInt(), rows = 24, cols = 80,
                 createdAt = 0L, lastExitCode = null, cursor = 0L
             ),
@@ -73,16 +73,16 @@ class TerminalDiagnosticsToolTest {
     private fun backend(id: String, state: String): TerminalRuntime.BackendStatus =
         TerminalRuntime.BackendStatus(
             id = id,
-            runtimeType = if (id == "linux-ubuntu") "LINUX" else "ANDROID_LOCAL",
+            runtimeType = "ANDROID_LOCAL",
             available = state == "READY",
             state = state,
-            detail = if (state == "FAILED") "proot binary missing" else null
+            detail = if (state == "FAILED") "backend binary missing" else null
         )
 
     @Test
     fun `healthy stack reports ok with sessions and backends`() = runBlocking {
         val runtime = FakeRuntime(
-            listOf(backend("local", "READY"), backend("linux-ubuntu", "READY")),
+            listOf(backend("local", "READY")),
             listOf(semantic(1, SessionState.READY))
         )
         val tool = TerminalDiagnosticsTool(runtime, execProbe = null)
@@ -90,7 +90,7 @@ class TerminalDiagnosticsToolTest {
 
         assertEquals("true", json["ok"]!!.jsonPrimitive.content)
         assertEquals("1", json["sessionCount"]!!.jsonPrimitive.content)
-        assertEquals(2, json["backends"]!!.jsonArray.size)
+        assertEquals(1, json["backends"]!!.jsonArray.size)
         assertEquals("all clear — terminal stack healthy", json["nextActions"]!!.jsonArray[0].jsonPrimitive.content)
     }
 
@@ -111,13 +111,14 @@ class TerminalDiagnosticsToolTest {
     }
 
     @Test
-    fun `needs rootfs backend yields actionable install hint`() = runBlocking {
-        val runtime = FakeRuntime(listOf(backend("linux-ubuntu", "NEEDS_ROOTFS")), emptyList())
+    fun `failed backend yields actionable reason hint`() = runBlocking {
+        val runtime = FakeRuntime(listOf(backend("local", "FAILED")), emptyList())
         val tool = TerminalDiagnosticsTool(runtime, execProbe = null)
         val json = Json.parseToJsonElement(tool.invoke("{}")).jsonObject
 
         val next = json["nextActions"]!!.jsonArray.joinToString { it.jsonPrimitive.content }
-        assertTrue(next.contains("TerminalUbuntuInstall"))
+        assertTrue(next.contains("failed"))
+        assertTrue(next.contains("backend binary missing"))
     }
 
     @Test

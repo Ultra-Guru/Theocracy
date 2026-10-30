@@ -174,12 +174,9 @@ data class ToolAnnotations(
                 toolId == "AgentSettingGet" || toolId == "AgentProfileList" ||
                 toolId == "AgentRoleList" || toolId == "AgentModePresetList" ||
                 toolId.startsWith("Memory") ||
-                toolId.startsWith("TerminalLinuxStatus") ||
-                toolId.startsWith("TerminalUbuntuStatus") ||
                 toolId.startsWith("TerminalSnapshot") ||
                 toolId.startsWith("TerminalObserve") ||
-                toolId.startsWith("TerminalBackends") ||
-                (toolId.startsWith("TerminalWorkspaces") && toolId.endsWith("list")) -> readOnly()
+                toolId.startsWith("TerminalBackends") -> readOnly()
 
             // ── Open-world reads (web / MCP / GitHub) ──
             toolId == "WebFetch" || toolId == "WebSearch" ||

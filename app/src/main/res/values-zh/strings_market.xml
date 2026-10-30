@@ -167,7 +167,6 @@
     <string name="market_mcp_command_hint">npx / python / 绝对路径二进制</string>
     <string name="market_mcp_args_label">参数（args，空格分隔）</string>
     <string name="market_mcp_env_label">环境变量（可选，每行 KEY=VALUE）</string>
-    <string name="market_mcp_stdio_hint">MCP 不必是服务器：这条命令会被作为本地子进程启动，通过 stdin/stdout 走 JSON-RPC。命令必须在 App 可见的环境里可执行（例如已在本 App 的 Ubuntu 环境中安装 Node/Python）。</string>
     <string name="market_mcp_url_label">URL（http(s)://…）</string>
     <string name="market_mcp_apikey_label">API Key（可选，作 Bearer 发送）</string>
     <string name="market_mcp_add_connect">添加并连接</string>
@@ -179,10 +178,6 @@
     <string name="market_mcp_edit_saved">已更新：%1$s（正在重连…）</string>
     <string name="market_mcp_edit_action">编辑</string>
 
-    <!-- ═══ 对话框 · 添加 MCP · PRoot 沙箱（Issue #163） ═══ -->
-    <string name="market_mcp_sandbox_label">在 PRoot 沙箱中运行</string>
-    <string name="market_mcp_sandbox_desc">命令将在内嵌 Ubuntu 环境中执行（本地命令建议开启——Android 宿主没有 npx/node）</string>
-    <string name="market_mcp_sandbox_unavailable">需先安装 Ubuntu 环境</string>
 
     <!-- ═══ 对话框 · 导入 MCP 配置 ═══ -->
     <string name="market_mcp_import_dialog_title">导入 MCP 配置</string>
@@ -360,7 +355,6 @@
     <string name="market_hub_mcp_header">官方 MCP 仓库 —— 安装 · 配置 · 启动</string>
     <string name="market_hub_mcp_loading">正在加载 MCP 仓库…</string>
     <string name="market_hub_mcp_not_running">已安装 · 未运行</string>
-    <string name="market_hub_mcp_requires_rootfs">在 PRoot Ubuntu 沙箱内运行 —— 未安装 Ubuntu 请先到「终端」页安装</string>
     <string name="market_mcp_configured_header">当前工位服务器 · 配置 / 启动（%1$d）</string>
     <string name="market_mcp_config">配置</string>
     <string name="market_mcp_start">启动</string>
@@ -399,7 +393,6 @@
     <string name="market_registry_kind_remote">远端直装</string>
     <string name="market_registry_kind_npm">npm · 沙箱预装</string>
     <string name="market_registry_kind_unsupported">需手动</string>
-    <string name="market_registry_npm_installing">沙箱内真实安装 npm 包中（移动网络下载，最长约 5 分钟）…</string>
     <string name="market_registry_pulse_credentials_title">PulseMCP 凭据</string>
     <string name="market_registry_pulse_credentials_hint">PulseMCP 是合作制 API：请向 pulsemcp.com 申请 X-API-Key 与 X-Tenant-ID 后填入（凭据以加密形式存储在本机）。</string>
     <string name="market_registry_credentials_clear">清除</string>

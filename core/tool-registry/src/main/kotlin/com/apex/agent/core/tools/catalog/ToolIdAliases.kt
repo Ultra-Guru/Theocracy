@@ -305,8 +305,6 @@ object ToolIdAliases {
 
         "terminal.backends" to "TerminalBackends",
 
-        "terminal.bridge" to "TerminalBridge",
-
         "terminal.close" to "TerminalClose",
 
         "terminal.create" to "TerminalCreate",
@@ -314,20 +312,6 @@ object ToolIdAliases {
         "terminal.diagnostics" to "TerminalDiagnostics",
 
         "terminal.exec" to "TerminalExec",
-
-        "terminal.fs" to "TerminalFs",
-
-        "terminal.linux.bootstrap" to "TerminalLinuxBootstrap",
-
-        "terminal.linux.capabilities" to "TerminalLinuxCapabilities",
-
-        "terminal.linux.network" to "TerminalLinuxNetwork",
-
-        "terminal.linux.packages" to "TerminalLinuxPackages",
-
-        "terminal.linux.repair" to "TerminalLinuxRepair",
-
-        "terminal.linux.status" to "TerminalLinuxStatus",
 
         "terminal.observe" to "TerminalObserve",
 
@@ -339,17 +323,7 @@ object ToolIdAliases {
 
         "terminal.snapshot" to "TerminalSnapshot",
 
-        "terminal.ubuntu.ensure" to "TerminalUbuntuEnsure",
-
-        "terminal.ubuntu.install" to "TerminalUbuntuInstall",
-
-        "terminal.ubuntu.status" to "TerminalUbuntuStatus",
-
         "terminal.wait" to "TerminalWait",
-
-        "terminal.workspace.environment" to "TerminalWorkspaceEnvironment",
-
-        "terminal.workspaces" to "TerminalWorkspaces",
 
         "terminal.write" to "TerminalWrite",
 

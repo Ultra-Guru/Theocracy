@@ -374,7 +374,7 @@ class ToolV3InfraTest {
         val state = ToolEnvironmentState()
         assertEquals("environment: (no capability telemetry yet)", state.summary())
 
-        state.set(ToolEnvironmentState.Flags.UBUNTU_READY, true)
+        state.set(ToolEnvironmentState.Flags.SHIZUKU_AVAILABLE, true)
         state.set(ToolEnvironmentState.Flags.ACCESSIBILITY_READY, true)
         state.set(ToolEnvironmentState.Flags.KEYBOARD_ACTIVE, false)
         val summary = state.summary()
@@ -383,13 +383,13 @@ class ToolV3InfraTest {
             "summary order wrong: $summary",
             summary.indexOf("accessibility_ready=on") < summary.indexOf("keyboard_active=off")
         )
-        assertTrue(summary.contains("ubuntu_ready=on"))
+        assertTrue(summary.contains("shizuku_available=on"))
         // 快照/摘要一致。
         assertEquals(
             mapOf(
                 ToolEnvironmentState.Flags.ACCESSIBILITY_READY to true,
                 ToolEnvironmentState.Flags.KEYBOARD_ACTIVE to false,
-                ToolEnvironmentState.Flags.UBUNTU_READY to true
+                ToolEnvironmentState.Flags.SHIZUKU_AVAILABLE to true
             ),
             state.snapshot()
         )
@@ -433,7 +433,6 @@ class ToolV3InfraTest {
 
         val cases = mapOf(
             ToolEnvironmentState.Flags.KEYBOARD_ACTIVE to "UiTap",
-            ToolEnvironmentState.Flags.UBUNTU_READY to "TerminalUbuntuEnsure",
             ToolEnvironmentState.Flags.TERMINAL_SESSION_OPEN to "TerminalCreate",
             ToolEnvironmentState.Flags.BROWSER_ATTACHED to "BrowserNavigate",
             ToolEnvironmentState.Flags.NETWORK_AVAILABLE to "device_info"

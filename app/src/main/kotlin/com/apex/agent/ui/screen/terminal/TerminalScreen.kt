@@ -39,7 +39,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -66,7 +65,6 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apex.agent.R
-import com.apex.agent.platform.terminal.ubuntu.lifecycle.UbuntuLifecycleCoordinator
 import kotlinx.coroutines.delay
 
 /**
@@ -88,7 +86,6 @@ fun TerminalScreen(
         val sessions by viewModel.sessions.collectAsStateWithLifecycle()
         val activeId by viewModel.activeSessionId.collectAsStateWithLifecycle()
         val notice by viewModel.notice.collectAsStateWithLifecycle()
-        val ubuntuState by viewModel.ubuntuLifecycleState.collectAsStateWithLifecycle()
         val settings by viewModel.settings.collectAsStateWithLifecycle()
 
         var showEnvCenter by rememberSaveable { mutableStateOf(false) }
@@ -154,8 +151,7 @@ fun TerminalScreen(
                 SessionTabsRow(
                     viewModel = viewModel,
                     sessions = sessions,
-                    activeId = activeId,
-                    ubuntuReady = ubuntuState.phase == UbuntuLifecycleCoordinator.Phase.READY
+                    activeId = activeId
                 )
                 Spacer(Modifier.height(8.dp))
                 NoticeBar(notice)
@@ -186,13 +182,13 @@ fun TerminalScreen(onBack: () -> Unit) {
 }
 
 // ═══════════════ 会话标签行（多对话）═══════════════
+// Theocracy：仅 Android 本地 Shell 后端（Ubuntu/PRoot 会话入口已随 Linux 栈移除）。
 
 @Composable
 private fun SessionTabsRow(
     viewModel: TerminalViewModel,
     sessions: List<SessionTab>,
-    activeId: Long?,
-    ubuntuReady: Boolean
+    activeId: Long?
 ) {
     Row(
         Modifier
@@ -203,9 +199,7 @@ private fun SessionTabsRow(
     ) {
         sessions.forEach { tab ->
             val selected = tab.id == activeId
-            val label = tab.title?.take(24)
-                ?: if (tab.isUbuntu) stringResource(R.string.term_tab_ubuntu)
-                else stringResource(R.string.term_tab_android)
+            val label = tab.title?.take(24) ?: stringResource(R.string.term_tab_android)
             val dead = !tab.isAlive
             AssistChip(
                 onClick = { viewModel.selectSession(tab.id) },
@@ -226,7 +220,6 @@ private fun SessionTabsRow(
                         Modifier.size(16.dp),
                         tint = when {
                             dead -> ConsoleTokens.lineExitBad
-                            tab.isUbuntu -> ConsoleTokens.amber
                             selected -> ConsoleTokens.primary
                             else -> ConsoleTokens.onSurfaceVariant
                         }
@@ -249,7 +242,7 @@ private fun SessionTabsRow(
             )
         }
         AssistChip(
-            onClick = { viewModel.createSession(SessionRegistry.BACKEND_UBUNTU) },
+            onClick = { viewModel.createSession(SessionRegistry.BACKEND_LOCAL) },
             label = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Filled.Add, contentDescription = null, Modifier.size(16.dp))
@@ -259,13 +252,6 @@ private fun SessionTabsRow(
             },
             shape = RoundedCornerShape(50)
         )
-        if (!ubuntuReady) {
-            AssistChip(
-                onClick = { viewModel.createSession(SessionRegistry.BACKEND_LOCAL) },
-                label = { Text(stringResource(R.string.term_use_android_first), style = MaterialTheme.typography.labelMedium) },
-                shape = RoundedCornerShape(50)
-            )
-        }
     }
 }
 
@@ -304,7 +290,6 @@ private fun ConsoleBody(
     modifier: Modifier
 ) {
     val sessions by viewModel.sessions.collectAsStateWithLifecycle()
-    val ubuntuState by viewModel.ubuntuLifecycleState.collectAsStateWithLifecycle()
     val tab = sessions.firstOrNull { it.id == activeId }
 
     Card(
@@ -314,7 +299,7 @@ private fun ConsoleBody(
     ) {
         Box(Modifier.fillMaxSize()) {
             when {
-                tab == null -> EnvironmentInlinePanel(viewModel, ubuntuState)
+                tab == null -> EmptySessionPanel(viewModel)
                 !tab.isAlive -> DeadSessionOverlay(viewModel, tab)
                 else -> ConsoleLinesPane(viewModel, tab, fontSize)
             }
@@ -322,12 +307,12 @@ private fun ConsoleBody(
     }
 }
 
-/** 输出行流 + 当前输入行（真实输出渲染核心）。 */
+/** 输出行流 + 当前输入行（真实输出渲染核心）。本地 shell 提示符恒为 "$"。 */
 @Composable
 private fun ConsoleLinesPane(viewModel: TerminalViewModel, tab: SessionTab, fontSize: Int) {
     val lines = viewModel.linesOf(tab.id)
     val running = viewModel.runningCommands[tab.id]
-    val prompt = if (tab.isUbuntu) "#" else "$"
+    val prompt = "$"
     val listState = rememberLazyListState()
     // 自动滚底：行数变化即滚到最后一项（当前输入/运行行）
     LaunchedEffect(lines.size) {
@@ -410,112 +395,31 @@ private fun rememberBlinkAlpha(): Float {
     return alpha
 }
 
-// ═══════════════ 环境内联面板（无会话时）═══════════════
+// ═══════════════ 空会话面板（无会话时）═══════════════
+// Theocracy：仅 Android 本地 Shell（Ubuntu 环境准备/重试面板已随 Linux 栈移除）。
 
 @Composable
-private fun EnvironmentInlinePanel(
-    viewModel: TerminalViewModel,
-    state: UbuntuLifecycleCoordinator.LifecycleState
-) {
-    val phase = state.phase
-    val progress by viewModel.ubuntuProgress.collectAsStateWithLifecycle(initialValue = null)
+private fun EmptySessionPanel(viewModel: TerminalViewModel) {
     Column(
         Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically)
     ) {
-        when (phase) {
-            UbuntuLifecycleCoordinator.Phase.FAILED -> {
-                Text(
-                    stringResource(R.string.term_env_failed_title),
-                    color = ConsoleTokens.lineError,
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Text(
-                    state.lastError?.take(300) ?: "",
-                    color = ConsoleTokens.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace
-                )
-                ActionRow {
-                    AssistChip(onClick = { viewModel.installUbuntu() }, label = { Text(stringResource(R.string.term_retry)) })
-                    AssistChip(
-                        onClick = { viewModel.createSession(SessionRegistry.BACKEND_LOCAL) },
-                        label = { Text(stringResource(R.string.term_use_android_first)) }
-                    )
-                }
-            }
-            UbuntuLifecycleCoordinator.Phase.READY -> {
-                Text(
-                    stringResource(R.string.term_no_terminal_session),
-                    color = ConsoleTokens.onSurface,
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Text(
-                    stringResource(R.string.term_env_ready_hint),
-                    color = ConsoleTokens.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall
-                )
-                ActionRow {
-                    FilledSessionButton(stringResource(R.string.term_new_ubuntu_session)) {
-                        viewModel.createSession(SessionRegistry.BACKEND_UBUNTU)
-                    }
-                    AssistChip(
-                        onClick = { viewModel.createSession(SessionRegistry.BACKEND_LOCAL) },
-                        label = { Text(stringResource(R.string.term_new_android_session)) }
-                    )
-                }
-            }
-            else -> {
-                // 准备中：NOT_INSTALLED / INSTALLING / ROOTFS_READY / BOOTSTRAPPING / RECOVERING
-                Text(
-                    stringResource(R.string.term_env_prep_title),
-                    color = ConsoleTokens.onSurface,
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Text(
-                    stringResource(R.string.term_env_prep_desc),
-                    color = ConsoleTokens.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall
-                )
-                val step = setupStepIndex(progress?.stage)
-                Text(
-                    listOf(
-                        stringResource(R.string.term_step_unpack),
-                        stringResource(R.string.term_step_configure),
-                        stringResource(R.string.term_step_toolchain)
-                    ).getOrElse(step) { "" } + " · " + (progress?.message?.take(60) ?: stringResource(R.string.term_starting)),
-                    color = ConsoleTokens.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontFamily = FontFamily.Monospace
-                )
-                LinearProgressIndicator(
-                    progress = { (progress?.percent ?: 0) / 100f },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Text(
-                    stringResource(R.string.term_prep_footnote),
-                    color = ConsoleTokens.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall
-                )
-                ActionRow {
-                    AssistChip(onClick = { viewModel.installUbuntu() }, label = { Text(stringResource(R.string.term_retry)) })
-                    AssistChip(
-                        onClick = { viewModel.createSession(SessionRegistry.BACKEND_LOCAL) },
-                        label = { Text(stringResource(R.string.term_use_android_first)) }
-                    )
-                }
+        Text(
+            stringResource(R.string.term_no_terminal_session),
+            color = ConsoleTokens.onSurface,
+            style = MaterialTheme.typography.titleMedium
+        )
+        Text(
+            stringResource(R.string.term_host_shell_desc),
+            color = ConsoleTokens.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall
+        )
+        ActionRow {
+            FilledSessionButton(stringResource(R.string.term_new_session_title)) {
+                viewModel.createSession(SessionRegistry.BACKEND_LOCAL)
             }
         }
     }
-}
-
-/** 进度阶段 → 步骤序号（与旧 EnvironmentPanel.setupStepIndex 同规则）。 */
-private fun setupStepIndex(stage: String?): Int = when {
-    stage == null -> 0
-    stage.startsWith("bootstrap") -> 2
-    stage.startsWith("install") && stage.substringAfter(':') in
-        setOf("CONFIGURING", "ACTIVATING", "VALIDATING") -> 1
-    else -> 0
 }
 
 @Composable
@@ -557,7 +461,7 @@ private fun DeadSessionOverlay(viewModel: TerminalViewModel, tab: SessionTab) {
             style = MaterialTheme.typography.titleMedium
         )
         Text(
-            stringResource(if (tab.isUbuntu) R.string.term_session_dead_ubuntu else R.string.term_session_dead_local),
+            stringResource(R.string.term_session_dead_local),
             color = ConsoleTokens.onSurfaceVariant,
             style = MaterialTheme.typography.bodySmall
         )

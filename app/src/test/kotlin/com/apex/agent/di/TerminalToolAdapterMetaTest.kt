@@ -30,11 +30,11 @@ class TerminalToolAdapterMetaTest {
         val m = metaOf(
             """{"stdout":"","stderr":"sh: foo: not found","exit_code":127,""" +
                 """"duration_ms":12,"truncated":false,"timed_out":false,"killed":false,""" +
-                """"channel":"proot-ubuntu","cwd":"/workspace/proj"}"""
+                """"channel":"local-sh","cwd":"/sdcard/proj"}"""
         )
         assertEquals(127, m.exitCode)
-        assertEquals("proot-ubuntu", m.channel)
-        assertEquals("/workspace/proj", m.cwd)
+        assertEquals("local-sh", m.channel)
+        assertEquals("/sdcard/proj", m.cwd)
         assertNull(m.errorKind)
         assertFalse(m.waitingInput)
     }

@@ -18,7 +18,7 @@ class ToolOutputTruncatorJsonFieldTest {
     /** TerminalExec 形态：stdout 长输出 + 尾部成败标量。 */
     private fun terminalExecJson(stdoutChars: Int): String {
         val stdout = "x".repeat(stdoutChars)
-        return """{"stdout":"$stdout","stderr":"","exit_code":127,"channel":"proot-ubuntu",""" +
+        return """{"stdout":"$stdout","stderr":"","exit_code":127,"channel":"local-sh",""" +
             """"duration_ms":1234,"truncated":false,"timed_out":true}"""
     }
 
@@ -32,7 +32,7 @@ class ToolOutputTruncatorJsonFieldTest {
         // 成败标量必须在（字段级截断的核心承诺）
         assertTrue("exit_code 必须保留", result.text.contains("\"exit_code\":127"))
         assertTrue("timed_out 必须保留", result.text.contains("\"timed_out\":true"))
-        assertTrue("channel 必须保留", result.text.contains("\"channel\":\"proot-ubuntu\""))
+        assertTrue("channel 必须保留", result.text.contains("\"channel\":\"local-sh\""))
         // stdout 被截断（带省略标注）
         assertTrue("长 stdout 应被截断", result.text.contains("chars omitted"))
         assertFalse("stdout 不应全文保留", result.text.contains("x".repeat(2_000)))

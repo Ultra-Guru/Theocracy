@@ -40,7 +40,7 @@ class ToolOutputTruncatorNoticeTest {
     fun `json field-level truncation keeps verdict scalars and carries notice`() {
         val truncator = ToolOutputTruncator(maxChars = 2000)
         val stdout = "x".repeat(12_000)
-        val json = """{"stdout":"$stdout","stderr":"","exit_code":127,"channel":"proot",""" +
+        val json = """{"stdout":"$stdout","stderr":"","exit_code":127,"channel":"local-sh",""" +
             """"duration_ms":1234,"truncated":false,"timed_out":true}"""
         val result = truncator.smartTruncate(json, "TerminalExec")
         assertTrue(result.truncated)

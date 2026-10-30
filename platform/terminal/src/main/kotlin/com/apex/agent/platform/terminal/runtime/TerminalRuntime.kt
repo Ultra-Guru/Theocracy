@@ -40,8 +40,7 @@ interface TerminalRuntime {
 
     // ───────── create ─────────
     // Spec §34.1 + T73: backendId 路由（ExecutionBackendRegistry）。
-    // "local" = Android 本地 shell（默认，与历史行为一致）；"linux-ubuntu" =
-    // PRoot + Ubuntu RootFS 会话（需 rootfs 已 provision，否则失败并携带引导信息）。
+    // "local" = Android 本地 shell（默认，与历史行为一致；Theocracy 现为唯一后端）。
     suspend fun create(
         shell: String = "/system/bin/sh",
         cwd: String = "/sdcard",
@@ -51,8 +50,8 @@ interface TerminalRuntime {
         privilege: PrivilegeLevel = PrivilegeLevel.NORMAL,
         backendId: String = "local",
         /**
-         * T75: workspace id（仅 LINUX 后端；null/blank → "default"）。合法格式
-         * （^[a-z0-9][a-z0-9_-]{0,63}$）的 id 懒创建。LOCAL + 非空 → InvalidInput。
+         * T75: workspace id（历史 LINUX 后端概念；现仅 local 后端，非空值被
+         * 显式拒绝 —— 接缝保留，未来新后端可解禁）。
          */
         workspaceId: String? = null
     ): RuntimeResult<CreateResult>
@@ -70,16 +69,14 @@ interface TerminalRuntime {
         // ── T73: 后端路由结果（Agent 可感知会话落在哪个执行环境）──
         val backendId: String = "local",
         val runtimeType: String = "ANDROID_LOCAL",   // BackendRuntimeType name
-        val rootfsId: String? = null,                // LINUX: 已就绪 rootfs 的 id
-        val guestCwd: String? = null,                // LINUX: guest 语义 cwd
-        // ── T75: workspace（LINUX 会话的隔离文件区）──
-        val workspaceId: String? = null              // LINUX: 会话绑定的 workspace id
+        val guestCwd: String? = null,                // 历史 LINUX 语义（local 恒 null）
+        // ── T75: workspace（历史 LINUX 会话隔离文件区）──
+        val workspaceId: String? = null              // 历史 LINUX 语义（local 恒 null）
     )
 
     // ───────── backends（T73：Agent 后端能力发现）─────────
     // Spec §33（Agent 只依赖 TerminalRuntime 门面）：列出所有已注册执行后端及
-    // 其真实可用性。Agent 据此决定 create(backendId=…) 的目标，或在
-    // NEEDS_ROOTFS 时先调 TerminalUbuntuInstall 引导安装。
+    // 其真实可用性。Agent 据此决定 create(backendId=…) 的目标。
     suspend fun backends(): List<BackendStatus>
 
     /** 单个后端的可用性快照（T73）。 */
@@ -87,7 +84,7 @@ interface TerminalRuntime {
         val id: String,
         val runtimeType: String,        // BackendRuntimeType.name: ANDROID_LOCAL | LINUX
         val available: Boolean,         // availability is Ready
-        val state: String,              // READY | NEEDS_ROOTFS[:state] | FAILED
+        val state: String,              // READY | FAILED
         val detail: String? = null      // 失败原因 / 引导提示
     )
 

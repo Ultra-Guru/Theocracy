@@ -6,20 +6,21 @@ import com.apex.agent.platform.terminal.policy.PrivilegeLevel
  * P71: ExecutionBackend — PTY-Spawn 级接缝（方案 C，PR #75 计划 §3）。
  *
  * 核心洞察：Terminal Core 的全部下游（泵/VT/观察/等待/写入/信号/缩放）只依赖
- * "一个真实 PTY master fd + nativeSessionId"。Linux 会话与本地会话在 PTY 层面
- * 没有本质区别 —— 唯一差异是 forkpty 的 child exec 什么 argv、带什么 env、
+ * "一个真实 PTY master fd + nativeSessionId"。不同后端会话在 PTY 层面没有本质
+ * 区别 —— 唯一差异是 forkpty 的 child exec 什么 argv、带什么 env、
  * 落在什么 cwd。因此接缝放在唯一的 spawn 点：
  *
  * ```
  * SessionManager.create(SpawnSpec) → nativeCreateSessionArgv → forkpty
  *     LOCAL: execv("/system/bin/sh", ["sh", "-i"])
- *     LINUX: execv(libproot.so, [proot, "-r", rootfs, …, "--", "/bin/bash", "-i"])
  * ```
  *
  * 这是 P71 引入的唯一新抽象；P73 才把它接进 TerminalRuntime.create(backend=…)。
+ * （历史：LINUX/PRoot 后端已随 Linux 栈剥离移除 —— 接缝保留，新后端实现本
+ * 接口注册进 [ExecutionBackendRegistry] 即可被同一链路路由。）
  */
 interface ExecutionBackend {
-    /** 稳定标识（Agent 可读）："local" | "linux-ubuntu" | … */
+    /** 稳定标识（Agent 可读）：“local” | … */
     val id: String
 
     /** 后端类别：本地 Android shell 还是 Linux 用户空间。 */
@@ -33,40 +34,37 @@ interface ExecutionBackend {
 
     /**
      * 把会话创建请求翻译成可 spawn 的 [SpawnSpec]。
-     * 失败（rootfs 未就绪、二进制缺失…）返回带 [BackendAvailability] 的失败。
+     * 失败（二进制缺失、环境异常…）返回带 [BackendAvailability] 的失败。
      */
     suspend fun prepare(request: SessionSpawnRequest): Result<SpawnSpec>
 }
 
-/** 后端类别（自包含枚举，不与 linux 契约的死代码文件耦合）。 */
+/** 后端类别（自包含枚举；LINUX 值为未来 Linux 侧后端预留的接缝）。 */
 enum class BackendRuntimeType { ANDROID_LOCAL, LINUX }
 
-/** availability() 的结果 —— 三态 + 引导信息。 */
+/** availability() 的结果 —— 两态 + 原因。 */
 sealed class BackendAvailability {
     /** 可立即创建会话。 */
     object Ready : BackendAvailability()
 
-    /** rootfs 未安装/未就绪（Agent 可引导安装，P72 接入下载进度）。 */
-    data class NeedsRootfs(val state: String = "not_provisioned", val progress: Float? = null) : BackendAvailability()
-
-    /** 后端本身不可用（proot 二进制缺失/损坏、架构不匹配…）。 */
+    /** 后端本身不可用（二进制缺失/损坏、环境异常…）。 */
     data class Failed(val reason: String) : BackendAvailability()
 }
 
 /** SessionManager.create 的后端无关请求。 */
 data class SessionSpawnRequest(
-    /** LOCAL: shell 路径提示（null → /system/bin/sh）；LINUX: 忽略（后端固定 /bin/bash）。 */
+    /** shell 路径提示（null → /system/bin/sh）。 */
     val shellHint: String? = null,
-    /** LOCAL: host 绝对路径；LINUX: guest 语义路径（由后端翻译成 -w）。 */
+    /** host 绝对路径。 */
     val cwd: String,
     val rows: Int,
     val cols: Int,
-    /** 调用方显式 env（LOCAL: 追加覆盖默认值；LINUX: 进入 -E guest env）。 */
+    /** 调用方显式 env（追加覆盖默认值）。 */
     val env: Map<String, String> = emptyMap(),
     val privilege: PrivilegeLevel = PrivilegeLevel.NORMAL,
     /**
-     * T75: LINUX 后端的 workspace id（null/blank → "default"）。合法 id 懒创建
-     * （workspace-per-task 零摩擦）。LOCAL 后端不支持 —— runtime 层提前拒绝。
+     * T75: 历史上是 LINUX 后端的 workspace id —— Linux 栈已移除，现仅作为
+     * 接缝字段保留（local 后端忽略；runtime 层对非空值显式拒绝）。
      */
     val workspaceId: String? = null
 )
@@ -76,26 +74,22 @@ data class SessionSpawnRequest(
  * 的直接入参。
  */
 data class SpawnSpec(
-    /** argv[0] = 可执行文件。LOCAL: ["/system/bin/sh","-i"]；LINUX: [libproot.so,"-r",…,"--","/bin/bash","-i"]。 */
+    /** argv[0] = 可执行文件。LOCAL: ["/system/bin/sh","-i"]。 */
     val argv: List<String>,
     /** 传给 native 的显式 env（叠加在 C++ 安全默认值之上）。 */
     val env: Map<String, String>,
-    /**
-     * forkpty child 的 host 侧 chdir 目标。
-     * LINUX: proot 忽略 host cwd（以 -w 为准），此处只需一个必然存在的目录（rootfs 根）。
-     */
+    /** forkpty child 的 host 侧 chdir 目标。 */
     val cwd: String,
-    /** true = request.cwd 是 guest 路径（已通过 argv 的 -w 表达，host cwd 仅作安全落点）。 */
+    /** true = request.cwd 是 guest 路径（历史 LINUX 语义；local 恒 false）。 */
     val cwdIsGuestPath: Boolean,
     /**
      * T73: 展示语义的 shell 路径（进 TerminalSession.shell / SessionCreated 事件）。
-     * null → argv[0]（LOCAL = shell 路径本身）；LINUX = "/bin/bash"（argv[0] 是
-     * libproot.so 路径，对 Agent/UI 无意义）。
+     * null → argv[0]（LOCAL = shell 路径本身）。
      */
     val shellDisplay: String? = null,
     /**
      * T73: 展示语义的 cwd（进 TerminalSession.initialCwd / SessionCreated 事件）。
-     * null → spec.cwd（host 路径）；LINUX 由 metadata.guestCwd 承担。
+     * null → spec.cwd（host 路径）。
      */
     val cwdDisplay: String? = null,
     /** 进 SessionRecord 的后端元数据（T73 已持久化：SessionRecord schema v2）。 */
@@ -105,13 +99,12 @@ data class SpawnSpec(
 /** SpawnSpec 的会话元数据（持久化/诊断用，不参与 spawn 本身）。 */
 data class BackendSessionMetadata(
     val backendId: String,
-    val rootfsId: String? = null,
-    /** T75: workspace id（懒创建后的规范化 id；LOCAL 恒 null）。 */
+    /** T75: workspace id（历史 LINUX 语义；local 恒 null，接缝保留）。 */
     val workspaceId: String? = null,
-    /** host 侧 workspace 目录（bind 到 guest /workspace）。 */
+    /** host 侧 workspace 目录（历史 LINUX bind 语义；local 恒 null）。 */
     val workspaceDir: String? = null,
     val binds: List<String> = emptyList(),
-    /** guest 初始 cwd（LINUX: -w 的值；LOCAL: null == host cwd）。 */
+    /** guest 初始 cwd（历史 LINUX 语义；local 恒 null == host cwd）。 */
     val guestCwd: String? = null
 )
 

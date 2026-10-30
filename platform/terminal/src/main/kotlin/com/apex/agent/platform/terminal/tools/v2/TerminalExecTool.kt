@@ -76,14 +76,9 @@ class TerminalExecTool(
         use head/tail/grep to narrow). timeout_ms kills the process honestly
         (timed_out=true). cwd defaults to the remembered working directory (cd persists
         across calls, same as ShellExecute).
-        Channel routing (see "channel" in the result): when the Ubuntu sandbox is
-        installed and ready, non-Android commands (python3, gcc, apt, git, npm, pip,
-        make, node, bash scripts, ...) run inside the PRoot Ubuntu sandbox
-        (channel="proot-ubuntu"; /sdcard maps to shared storage, /workspace to the
-        active workspace) — toolchain commands work out of the box. Android-specific
-        commands (am, pm, dumpsys, settings, input, ...) and any command while Ubuntu
-        is not installed fall back to the Android host shell (root-su / shizuku /
-        local-sh). Prefer this over TerminalExecLegacy for non-interactive commands; use
+        Channel routing (see "channel" in the result): commands run on the Android host
+        shell (root-su / shizuku / local-sh — whichever privilege channel is available).
+        Prefer this over TerminalExecLegacy for non-interactive commands; use
         TerminalRun+observe for interactive/long jobs.
     """.trimIndent()
 

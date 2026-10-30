@@ -447,14 +447,6 @@
     <string name="storage_unit_files">%1$d 个</string>
     <string name="storage_clear_attachments">清空附件</string>
     <string name="storage_attachments_desc">聊天附件的本地缓存；清除后历史消息中的附件预览将不可用（Agent 侧引用路径失效）。</string>
-    <string name="storage_ubuntu_title">Ubuntu 环境（rootfs，内置）</string>
-    <string name="storage_status">状态</string>
-    <string name="storage_rootfs_not_installed">未解包</string>
-    <string name="storage_rootfs_ready">已就绪</string>
-    <string name="storage_rootfs_failed">异常</string>
-    <string name="storage_calculating">统计中…</string>
-    <string name="storage_delete_ubuntu">删除 Ubuntu 环境（保留用户数据）</string>
-    <string name="storage_ubuntu_desc">删除解包后的 rootfs 与解包缓存；guest /root 用户数据与 workspace 保留，重新离线解包即恢复。完整管理（解包/修复）在终端页环境中心。</string>
     <string name="storage_conversation_history">会话历史</string>
     <string name="storage_messages">消息数</string>
     <string name="storage_unit_msgs">%1$d 条</string>
@@ -467,9 +459,6 @@
     <string name="storage_log_desc">日志位于内存环形缓冲（App 重启即释放）；完整查看与导出在「运行日志」页。</string>
     <string name="storage_confirm_attachments_title">清空附件？</string>
     <string name="storage_confirm_attachments_text">将删除全部 %1$d 个附件文件（%2$s）。此操作不可撤销。</string>
-    <string name="storage_confirm_rootfs_title">删除 Ubuntu 环境？</string>
-    <string name="storage_confirm_rootfs_text">将删除解包后的 rootfs（%1$s）与解包缓存；内置安装包随 APK 保留，可随时重新离线解包；用户数据（/root、workspace）保留。</string>
-    <string name="storage_about_1gb">约 1GB</string>
     <string name="storage_confirm_conversation_title">清空会话历史？</string>
     <string name="storage_confirm_conversation_text">将删除全部 %1$d 条消息，Agent 上下文从零开始。建议先导出备份。</string>
     <string name="storage_confirm">确认</string>
@@ -670,8 +659,8 @@
     <string name="onboarding_welcome_desc">对话驱动 · 真实终端 · 上百项工具\nAgent 直接在手机上完成任务</string>
     <string name="onboarding_cap_agent_title">对话智能体</string>
     <string name="onboarding_cap_agent_desc">多模型接入、计划确认、工具编排 —— 复杂任务一步步执行并汇报</string>
-    <string name="onboarding_cap_terminal_title">Ubuntu 终端</string>
-    <string name="onboarding_cap_terminal_desc">手机上跑真实的 Linux 环境：apt 装包、bash 脚本、完整文件系统（rootfs 随 APK 内置，离线即用）</string>
+    <string name="onboarding_cap_terminal_title">本地终端</string>
+    <string name="onboarding_cap_terminal_desc">手机上跑真实的 Android 本地 Shell：PTY 会话、mksh + toybox 命令、开箱即用</string>
     <string name="onboarding_cap_market_title">技能与市场</string>
     <string name="onboarding_cap_market_desc">100+ 内置工具按需取用，技能市场持续扩展 Agent 的能力边界</string>
     <!-- v1.5：浏览器自动化能力卡（内置大功能，Onboarding 页 2） -->
@@ -718,7 +707,7 @@
     <string name="onboarding_final_title">最后一步</string>
     <string name="onboarding_ready_desc">进入后先在「设置 → 模型配置」填入你的\nAPI 密钥（OpenAI / Anthropic / 兼容端点），\nAgent 才能开始执行任务</string>
     <string name="onboarding_quickstart_title">上手路线</string>
-    <string name="onboarding_quickstart_steps">1 · 抽屉菜单打开「设置」配置模型\n2 · 回到 Agent 对话页发第一条消息\n3 · 试试「终端」页离线解包内置 Ubuntu\n4 · 让 Agent 帮你装包、跑脚本、改文件</string>
+    <string name="onboarding_quickstart_steps">1 · 抽屉菜单打开「设置」配置模型\n2 · 回到 Agent 对话页发第一条消息\n3 · 到「终端」页试试真实 shell 命令\n4 · 让 Agent 帮你跑命令、管文件、做自动化</string>
 
     <!-- ═══ Foreground service notification (ApexCoreService) ═══ -->
     <string name="core_notif_channel_name">Apex Agent 服务</string>
@@ -736,7 +725,7 @@
     <string name="about_section_highlights">本版亮点</string>
     <string name="about_highlight_1">浏览器智能体：应用内完整浏览器，页面理解与多标签自动化</string>
     <string name="about_highlight_2">Coding 工位：真实文件夹工作区 + 内置 Git + 终端输出内联流水</string>
-    <string name="about_highlight_3">Ubuntu 终端重写：VT 引擎、CSI 兼容与中文输入法稳定输入</string>
+    <string name="about_highlight_3">终端重写：原生 VT 引擎、CSI 兼容与中文输入法稳定输入</string>
     <string name="about_highlight_4">双思考体系：模型原生强度 + 七档自研档位，深水区自动升级</string>
     <string name="about_easter_egg_toast">你找到了烟花彩蛋</string>
     <string name="about_highlights_hint">连点本页底部的机器人图标五次试试</string>
@@ -827,8 +816,8 @@
     <string name="about_feature_agent_desc">多档思考、工具编排、技能生态与聊天记忆</string>
     <string name="about_feature_coding_title">Coding 模式</string>
     <string name="about_feature_coding_desc">独立编码引擎 + 真实文件夹工作区（文件树 / Git 变更 / 终端）</string>
-    <string name="about_feature_terminal_title">Ubuntu 终端</string>
-    <string name="about_feature_terminal_desc">APK 内置完整 Ubuntu 24.04 CLI 与 PRoot 沙箱，离线可用</string>
+    <string name="about_feature_terminal_title">本地终端</string>
+    <string name="about_feature_terminal_desc">原生 PTY/VT 引擎上的真实 Android 本地 Shell（mksh + toybox），零配置</string>
     <string name="about_feature_market_title">技能市场</string>
     <string name="about_feature_market_desc">按需安装技能、MCP 服务与插件</string>
     <string name="about_feature_vault_title">加密金库</string>

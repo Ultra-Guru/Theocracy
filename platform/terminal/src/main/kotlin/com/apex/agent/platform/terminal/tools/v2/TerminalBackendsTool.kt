@@ -16,11 +16,7 @@ import kotlinx.serialization.json.jsonPrimitive
  *
  * 列出所有已注册执行后端及其真实可用性：
  *   - local          ANDROID_LOCAL  恒 READY
- *   - linux-ubuntu   LINUX          READY（rootfs 已装）/ NEEDS_ROOTFS（先用
- *                                   TerminalUbuntuInstall 引导）/ FAILED（proot 缺失等）
- *
- * Agent 决策链：backends() → 需要 Ubuntu 但 NEEDS_ROOTFS → TerminalUbuntuInstall
- * → READY 后 TerminalCreate(backend="linux-ubuntu") → run/observe/write …
+ *（Theocracy：linux-ubuntu/PRoot 后端已随 Linux 栈剥离移除）
  *
  * JSON Schema (input):  { }（无参数）
  * JSON Schema (output): { backends: [ { id, runtimeType, available, state, detail? } ] }
@@ -33,8 +29,8 @@ class TerminalBackendsTool(
     override val description: String = """
         Discover available terminal execution backends and their real availability.
         Returns each backend's id (use as TerminalCreate's "backend" parameter), runtime type,
-        and state: READY (usable now) / NEEDS_ROOTFS (bundled archive not yet extracted — call TerminalUbuntuInstall, offline, minutes for the full ~1GB environment) /
-        FAILED (with reason). Check this before creating a linux-ubuntu session.
+        and state: READY (usable now) / FAILED (with reason).
+        Theocracy ships a single "local" backend (the on-device Android shell).
     """.trimIndent()
 
     override val parametersSchema: String = """

@@ -5,34 +5,19 @@
     <string name="term_back">返回</string>
     <string name="term_cmd_hint">输入命令…</string>
     <string name="term_new_session_title">新建会话</string>
-    <string name="term_use_android_first">先用 Android Shell</string>
-    <string name="term_new_ubuntu_session">新建 Ubuntu 会话</string>
-    <string name="term_new_android_session">Android Shell</string>
     <string name="term_close_session">关闭会话</string>
-    <string name="term_tab_ubuntu">Ubuntu</string>
     <string name="term_tab_android">Android</string>
     <string name="term_state_dead">已中断</string>
 
-    <!-- ═══ 会话/环境内联面板 ═══ -->
-    <string name="term_env_prep_title">正在准备 Ubuntu 环境</string>
-    <string name="term_env_prep_desc">首次运行解包内置 rootfs 并引导 apt，进度在此展示。</string>
-    <string name="term_starting">启动中…</string>
-    <string name="term_step_unpack">解包</string>
-    <string name="term_step_configure">配置</string>
-    <string name="term_step_toolchain">工具链</string>
-    <string name="term_prep_footnote">内置离线镜像，首次约 2–5 分钟。</string>
-    <string name="term_env_failed_title">环境失败</string>
+    <!-- ═══ 空会话面板 ═══ -->
     <string name="term_no_terminal_session">暂无会话</string>
-    <string name="term_env_ready_hint">Ubuntu 已就绪：真实 bash / gcc / python3 可用。</string>
-    <string name="term_retry">重试</string>
     <string name="term_session_dead_title">会话已结束</string>
-    <string name="term_session_dead_ubuntu">Ubuntu 会话进程已消失，重启可重新拉起。</string>
     <string name="term_session_dead_local">Android Shell 会话已消失，重启可重新拉起。</string>
     <string name="term_session_restart">重启会话</string>
     <string name="term_session_opened">会话已开启（%1$s）—— 此处命令为真实执行</string>
 
     <!-- ═══ 帮助 / EXIT 行 ═══ -->
-    <string name="term_help_body">控制台帮助\n· 命令在真实 shell 会话中执行（Ubuntu PRoot 或 Android toybox）\n· help / clear 为控制台内建，其余命令全部真实执行\n· ↑/↓ 召回历史；长按输出可复制\n· 环境管理请打开环境中心</string>
+    <string name="term_help_body">控制台帮助\n· 命令在真实的 Android 本地 shell 会话中执行（toybox/mksh）\n· help / clear 为控制台内建，其余命令全部真实执行\n· ↑/↓ 召回历史；长按输出可复制\n· 环境管理请打开环境中心</string>
     <string name="term_exit_ok">✓ exit 0</string>
     <string name="term_exit_code">✗ exit %1$d</string>
     <string name="term_exit_unknown">✓ exit ?</string>
@@ -41,8 +26,6 @@
 
     <!-- ═══ 通知（VM）═══ -->
     <string name="term_notice_recovered">已恢复 %1$d 个中断会话 —— 以死标签可见</string>
-    <string name="term_notice_fallback_session">Ubuntu 不可用（%1$s）—— 已降级到 Android Shell</string>
-    <string name="term_notice_ubuntu_unavailable">Ubuntu 不可用：%1$s</string>
     <string name="term_notice_create_failed">会话创建失败:%1$s</string>
     <string name="term_notice_no_session_input">无活跃会话 —— 请先新建</string>
     <string name="term_notice_session_dead">会话已结束 —— 请重启</string>
@@ -51,52 +34,16 @@
     <string name="term_notice_wait_failed">等待失败:%1$s</string>
     <string name="term_notice_wait_timeout">等待超时 —— 已终止</string>
     <string name="term_notice_session_gone">执行期间会话结束</string>
-    <string name="term_notice_no_pty">没有可用会话执行安装</string>
-    <string name="term_notice_fallback_android">已降级 Android Shell —— apt 仅在 Ubuntu 可用</string>
     <string name="term_notice_truncated">…输出已截断…\n</string>
-    <string name="term_notice_install_all_start">▶ 全部安装（镜像=%1$s）\n</string>
-    <string name="term_notice_install_all_done">✓ 全部依赖安装完成\n</string>
-    <string name="term_notice_install_android_start">▶ 安装 Android 依赖（镜像=%1$s）\n</string>
-    <string name="term_notice_install_android_done">✓ Android 依赖安装完成\n</string>
     <string name="term_copy_done">已复制 %1$d 字符</string>
 
     <!-- ═══ 环境中心 ═══ -->
     <string name="term_env_center">环境中心</string>
     <string name="term_env_center_title">环境中心</string>
-    <string name="term_env_center_desc">Ubuntu rootfs、后端与依赖安装</string>
-    <string name="term_ubuntu_card_title">Ubuntu（PRoot）</string>
-    <string name="term_ubuntu_card_desc">类 chroot rootfs 中的真实 bash / gcc / python3</string>
-    <string name="term_disk_usage">磁盘占用:%1$s</string>
-    <string name="term_progress_bytes">%1$s / %2$s</string>
-    <string name="term_capabilities">能力</string>
-    <string name="term_bootstrap_note">降级就绪:</string>
-    <string name="term_unpack_built_in">解包内置</string>
-    <string name="term_unpacking">解包中…</string>
-    <string name="term_bootstrapping">引导中…</string>
-    <string name="term_finish_bootstrap">完成引导</string>
-    <string name="term_repair">修复</string>
-    <string name="term_delete">删除</string>
-    <string name="term_retry_install">重试安装</string>
-    <string name="term_cancel">取消</string>
-    <string name="term_remove_ubuntu_title">删除 Ubuntu 环境?</string>
-    <string name="term_remove_ubuntu_text">rootfs 将从磁盘移除，所有 Ubuntu 会话随之结束，且不可撤销。</string>
-    <string name="term_phase_not_installed">未安装</string>
-    <string name="term_phase_installing">安装中</string>
-    <string name="term_phase_rootfs_ready">rootfs 就绪</string>
-    <string name="term_phase_bootstrapping">引导中</string>
-    <string name="term_phase_ready">就绪</string>
-    <string name="term_phase_recovering">恢复中</string>
-    <string name="term_phase_failed">失败</string>
+    <string name="term_env_center_desc">终端宿主与后端</string>
     <string name="term_host_shell_title">终端宿主</string>
     <string name="term_host_shell_desc">基于 Android toybox 的 mksh —— 无需任何安装即可使用</string>
     <string name="term_builtin">内置</string>
-    <string name="term_deps_title">依赖（apt）</string>
-    <string name="term_use_mirror">使用 TUNA 镜像</string>
-    <string name="term_mirror_desc">国内更快；失败回退官方源</string>
-    <string name="term_install_all">全部安装</string>
-    <string name="term_android_deps">仅 Android 组</string>
-    <string name="term_installing">安装中…</string>
-    <string name="term_install">安装</string>
 
     <!-- ═══ 历史 ═══ -->
     <string name="term_history_title">命令历史</string>

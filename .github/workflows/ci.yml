@@ -396,10 +396,6 @@ jobs:
       - name: Generate Gradle wrapper
         run: gradle wrapper --gradle-version 8.14
 
-      - name: Stage bundled Ubuntu rootfs (T83 内置交付)
-        run: |
-          scripts/fetch_rootfs.sh --arch arm64-v8a
-
       - name: Prewarm dependencies (retry on JitPack flakiness)
         run: |
           set -o pipefail

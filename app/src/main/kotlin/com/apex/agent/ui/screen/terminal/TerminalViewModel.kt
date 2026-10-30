@@ -10,10 +10,8 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.apex.agent.R
-import com.apex.agent.environment.EnvironmentProvisioner
 import com.apex.agent.platform.terminal.profile.GuestShellProfile
 import com.apex.agent.platform.terminal.runtime.TerminalRuntime
-import com.apex.agent.platform.terminal.ubuntu.lifecycle.UbuntuLifecycleCoordinator
 import com.apex.agent.ui.language.LanguageManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -33,9 +31,9 @@ import javax.inject.Inject
 /**
  * M3 控制台 ViewModel（T96 —— 终端大重构）。
  *
- * 真实执行编排中枢：会话生命周期（创建/关闭/重启/恢复）× 环境联动
- * （Ubuntu PRoot 优先 + 诚实降级）× 提交管线（门禁 → 历史 → CMD 行 →
- * [RealCommandExecutor] 流式真实输出 → 真实退出码 EXIT 行）。
+ * 真实执行编排中枢：会话生命周期（创建/关闭/重启/恢复）× 提交管线
+ * （门禁 → 历史 → CMD 行 → [RealCommandExecutor] 流式真实输出 →
+ * 真实退出码 EXIT 行）。
  *
  * 与旧交互终端（T83，已删除）的差异：
  *  - 输入不再是 PTY 字节流（readline 镜像/DECCKM/括号粘贴），而是
@@ -45,18 +43,16 @@ import javax.inject.Inject
  *  - 命令执行是真实 PTY job（runtime.run + marker 退出码协议）——
  *    与模拟实现（M3 旧模块，已删除）彻底告别。
  *
- * 保留自旧 VM 的语义（功能转移清单）：多会话簿 [SessionRegistry]、Ubuntu
- * 优先默认策略（READY 自动拉起 + 明确失败降级 LOCAL）、mksh profile 播种、
- * 崩溃恢复可见死标签、类型化通知、命令黑白名单、历史记录 + ↑/↓ 召回、
- * 依赖安装中心、设置持久化。
+ * Theocracy：Ubuntu/PRoot 后端与依赖安装中心随 Linux 栈移除 —— 会话恒为
+ * 本地 Android Shell；保留自旧 VM 的多会话簿 [SessionRegistry]、mksh
+ * profile 播种、崩溃恢复可见死标签、类型化通知、命令黑白名单、
+ * 历史记录 + ↑/↓ 召回、设置持久化。
  */
 @HiltViewModel
 class TerminalViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val terminalRuntime: TerminalRuntime,
-    // T82: Ubuntu 产品级生命周期 —— 环境配置面板与依赖安装路由的底座。
-    private val ubuntuLifecycle: UbuntuLifecycleCoordinator,
-    // i18n：通知/安装日志/EXIT 行文案（非 Compose 场景，LanguageManager 取词）
+    // i18n：通知/EXIT 行文案（非 Compose 场景，LanguageManager 取词）
     private val lang: LanguageManager,
     // 两个 store 由 TerminalModule 提供 Hilt 单例：设置中心「终端」分类与
     // 本 VM 共享同一内存态（任意一侧改动经同一 StateFlow 即时广播）。
@@ -74,17 +70,6 @@ class TerminalViewModel @Inject constructor(
 
     /** 命令历史（记录 + ↑/↓ 召回）。 */
     internal val commandHistory = TerminalCommandHistory(context)
-
-    /** 环境依赖安装中心（apt 路由；EnvironmentProvisioner 编排）。 */
-    internal val depCenter = TerminalDepCenter(
-        scope = viewModelScope,
-        prefs = prefs,
-        runtime = terminalRuntime,
-        provisioner = EnvironmentProvisioner(terminalRuntime, ubuntuLifecycle),
-        registry = registry,
-        lang = lang,
-        onSessionsChanged = ::refreshSessions
-    )
 
     /** 真实命令执行器（流式输出 + 真实退出码）。 */
     internal val executor = RealCommandExecutor(terminalRuntime)
@@ -106,10 +91,6 @@ class TerminalViewModel @Inject constructor(
     /** 每会话的运行中命令（null = 空闲；提交双守卫 + 停止按钮数据源）。 */
     internal val runningCommands = mutableStateMapOf<Long, String>()
 
-    /** Ubuntu rootfs 磁盘占用（环境中心卡片数据源；null = 未知/未安装）。 */
-    internal var rootfsSize by mutableStateOf<Long?>(null)
-        private set
-
     /** 历史召回游标（-1 = 实时输入位；↑ = 向更旧移动）。 */
     private var historyIndex = -1
 
@@ -120,14 +101,6 @@ class TerminalViewModel @Inject constructor(
 
     val sessions: StateFlow<List<SessionTab>> = registry.sessionTabs
     val activeSessionId: StateFlow<Long?> = registry.activeSessionId
-
-    /** Ubuntu 生命周期状态（环境配置面板/横幅数据源）。 */
-    val ubuntuLifecycleState: StateFlow<UbuntuLifecycleCoordinator.LifecycleState> =
-        ubuntuLifecycle.stateFlow
-
-    /** Ubuntu 安装/引导进度流（环境面板步骤条数据源）。 */
-    val ubuntuProgress: kotlinx.coroutines.flow.Flow<UbuntuLifecycleCoordinator.LifecycleProgress>
-        get() = ubuntuLifecycle.progressFlow()
 
     /** 控制台设置。 */
     internal val settings: StateFlow<TerminalSettings> = settingsStore.settings
@@ -163,10 +136,6 @@ class TerminalViewModel @Inject constructor(
 
     // ═══════════════ 会话生命周期 ═══════════════
 
-    /** T85：Ubuntu 优先默认会话策略挂起标记（语义与旧版一致）。 */
-    @Volatile
-    private var autoUbuntuSessionPending = false
-
     private val createMutex = Mutex()
     private var pollJob: Job? = null
     private var creating = false
@@ -181,51 +150,20 @@ class TerminalViewModel @Inject constructor(
             }
             refreshSessionsInternal()
             if (registry.sessionTabs.value.none { it.isAlive }) {
-                if (ubuntuLifecycle.stateFlow.value.phase == UbuntuLifecycleCoordinator.Phase.READY) {
-                    createMutex.withLock { createSessionInternal(SessionRegistry.BACKEND_UBUNTU) }
-                } else {
-                    autoUbuntuSessionPending = true
-                    val r = withContext(Dispatchers.IO) {
-                        runCatching { ubuntuLifecycle.ensureReady() }.getOrNull()
-                    }
-                    val failed = r == null || r is UbuntuLifecycleCoordinator.EnsureResult.Failed
-                    if (failed && autoUbuntuSessionPending &&
-                        registry.sessionTabs.value.none { it.isAlive }
-                    ) {
-                        autoUbuntuSessionPending = false
-                        val reason = (r as? UbuntuLifecycleCoordinator.EnsureResult.Failed)
-                            ?.message?.take(80)
-                        notifyFallback(R.string.term_notice_fallback_session, reason ?: "…")
-                        createMutex.withLock { createSessionInternal(SessionRegistry.BACKEND_LOCAL) }
-                    }
-                }
+                // Theocracy：无存活会话 → 直接拉起本地 Android Shell 会话
+                //（Ubuntu 优先策略已随 Linux 栈移除）。
+                createMutex.withLock { createSessionInternal(SessionRegistry.BACKEND_LOCAL) }
             } else {
                 registry.sessionTabs.value.firstOrNull { it.isAlive }?.let { selectSession(it.id) }
             }
             startSessionPolling()
         }
-
-        // 环境 READY 到达 → ①用户仍未手工建过会话时自动拉起 Ubuntu 会话；②刷新 rootfs 占用。
-        viewModelScope.launch {
-            ubuntuLifecycle.stateFlow.collect { st ->
-                if (st.phase == UbuntuLifecycleCoordinator.Phase.READY) {
-                    refreshRootfsSize()
-                    if (autoUbuntuSessionPending &&
-                        registry.sessionTabs.value.none { it.isAlive }
-                    ) {
-                        autoUbuntuSessionPending = false
-                        createMutex.withLock { createSessionInternal(SessionRegistry.BACKEND_UBUNTU) }
-                    }
-                }
-            }
-        }
     }
 
-    /** 用户主动新建（会话标签行 + 号菜单；取消 READY 自动拉起）。 */
+    /** 用户主动新建（会话标签行 + 号菜单）。 */
     fun createSession(backendId: String) {
         if (creating) return
         creating = true
-        autoUbuntuSessionPending = false
         viewModelScope.launch {
             try {
                 createMutex.withLock { createSessionInternal(backendId) }
@@ -255,13 +193,6 @@ class TerminalViewModel @Inject constructor(
         }
 
     private suspend fun createSessionInternal(backendId: String) {
-        if (backendId == SessionRegistry.BACKEND_UBUNTU) {
-            val r = withContext(Dispatchers.IO) { ubuntuLifecycle.ensureReady() }
-            if (r is UbuntuLifecycleCoordinator.EnsureResult.Failed) {
-                notifyError(R.string.term_notice_ubuntu_unavailable, r.message?.take(200) ?: "")
-                return
-            }
-        }
         val localEnv = if (backendId == SessionRegistry.BACKEND_LOCAL) {
             ensureLocalShellProfile()
         } else emptyMap()
@@ -298,11 +229,10 @@ class TerminalViewModel @Inject constructor(
     fun restartActiveSession() {
         val active = registry.activeSessionId.value ?: return
         val tab = registry.sessionTabs.value.firstOrNull { it.id == active } ?: return
-        val backend = when {
-            tab.backendId == SessionRegistry.BACKEND_UBUNTU || tab.backendId == SessionRegistry.BACKEND_LOCAL ->
-                tab.backendId
-            tab.runtimeType == "LINUX" -> SessionRegistry.BACKEND_UBUNTU
-            else -> SessionRegistry.BACKEND_LOCAL
+        val backend = if (tab.backendId == SessionRegistry.BACKEND_LOCAL) {
+            tab.backendId
+        } else {
+            SessionRegistry.BACKEND_LOCAL
         }
         viewModelScope.launch {
             withContext(Dispatchers.IO) { terminalRuntime.close(active, force = true) }
@@ -486,39 +416,6 @@ class TerminalViewModel @Inject constructor(
         }
     }
 
-    // ═══════════════ 环境配置动作（面板/中心 Sheet 委托）═══════════════
-
-    /** 触发 Ubuntu 安装/引导（进度经 ubuntuLifecycleState 流回）。 */
-    fun installUbuntu() {
-        viewModelScope.launch {
-            withContext(Dispatchers.IO) { ubuntuLifecycle.ensureReady() }
-        }
-    }
-
-    /** 取消进行中的安装。 */
-    fun cancelInstallUbuntu() {
-        viewModelScope.launch {
-            withContext(Dispatchers.IO) { ubuntuLifecycle.cancelInstall() }
-        }
-    }
-
-    /** 刷新 rootfs 磁盘占用（IO；环境中心卡片显示）。 */
-    fun refreshRootfsSize() {
-        viewModelScope.launch {
-            rootfsSize = withContext(Dispatchers.IO) {
-                runCatching { ubuntuLifecycle.rootfsSizeBytes() }.getOrNull()
-            }
-        }
-    }
-
-    /** 删除 Ubuntu rootfs（环境中心删除确认后的动作）。 */
-    fun removeUbuntu() {
-        viewModelScope.launch {
-            withContext(Dispatchers.IO) { ubuntuLifecycle.removeRootfs() }
-            rootfsSize = null
-        }
-    }
-
     // ═══════════════ 设置 / 名单 / 历史 委托 ═══════════════
 
     internal fun updateSettings(block: TerminalSettings.() -> TerminalSettings) = settingsStore.update(block)
@@ -547,7 +444,6 @@ class TerminalViewModel @Inject constructor(
         consoleLines.getOrPut(sid) { mutableStateListOf() }
 
     private fun labelOf(backendId: String): String = when (backendId) {
-        SessionRegistry.BACKEND_UBUNTU -> lang.getString(R.string.term_tab_ubuntu)
         SessionRegistry.BACKEND_LOCAL -> lang.getString(R.string.term_tab_android)
         else -> backendId
     }

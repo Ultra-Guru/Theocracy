@@ -393,13 +393,13 @@ class JniBridgeMappingTest {
     fun `nativeCreateSessionArgv forwards argv verbatim`() {
         val bridge = FakeJniBridge()
         val pty = newPty(bridge)
-        val argv = listOf("/lib/libproot.so", "-r", "/rootfs", "--", "/bin/bash", "-i")
+        val argv = listOf("/data/local/tmp/custom-shell", "--login", "-i")
 
-        val id = pty.nativeCreateSessionArgv(argv, "/rootfs", 24, 80, mapOf("TERM" to "xterm-256color"))
+        val id = pty.nativeCreateSessionArgv(argv, "/data/local/tmp", 24, 80, mapOf("TERM" to "xterm-256color"))
 
         assertTrue(id > 0)
         assertEquals(argv, bridge.spawnedArgv.single())
-        assertEquals("/rootfs", bridge.spawnedCwd.single())
+        assertEquals("/data/local/tmp", bridge.spawnedCwd.single())
         assertEquals(mapOf("TERM" to "xterm-256color"), bridge.spawnedEnv.single())
     }
 

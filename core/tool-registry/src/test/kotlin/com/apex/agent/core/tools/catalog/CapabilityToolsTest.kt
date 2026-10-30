@@ -57,7 +57,7 @@ class CapabilityToolsTest {
         )
         val env = ToolEnvironmentState().apply {
             set(ToolEnvironmentState.Flags.NETWORK_AVAILABLE, true)
-            set(ToolEnvironmentState.Flags.UBUNTU_READY, false)
+            set(ToolEnvironmentState.Flags.TERMINAL_SESSION_OPEN, false)
         }
         val tool = CapabilityReportTool(
             registry = registry,
@@ -74,7 +74,7 @@ class CapabilityToolsTest {
         assertTrue(out.contains("- Upgrade: "))
         // 环境段：与执行侧环境门同源（flag 名 = ToolEnvironmentState.Flags 常量）
         assertTrue(out.contains("network_available=on"))
-        assertTrue(out.contains("ubuntu_ready=off"))
+        assertTrue(out.contains("terminal_session_open=off"))
         // 工具段：legacy 剔除 → 2 注册（1 默认加载 + 1 目录）
         assertTrue(out.contains("Tools: 2 registered — 1 loaded by default, 1 more"))
         // 扩展梯度完整

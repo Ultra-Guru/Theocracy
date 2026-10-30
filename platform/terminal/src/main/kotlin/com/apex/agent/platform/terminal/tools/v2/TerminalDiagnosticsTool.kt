@@ -13,13 +13,13 @@ import kotlinx.serialization.json.jsonObject
  *
  * 一个工具同时回答三个问题：
  *  1. **会话面**：每个会话的真实状态（backend/shell/state/pid/退出码/前台 job）；
- *  2. **后端面**：local / linux-ubuntu 的可用性（READY / NEEDS_ROOTFS / FAILED+原因）；
+ *  2. **后端面**：local 的可用性（READY / FAILED+原因）；
  *  3. **自证面**：smokeTest=true 时真实执行一条命令（默认 `printf` 探针）并回报
  *     实际输出 —— Agent 拿到回显即证明「exec 链路（spawner → fork → PTY/pipe →
  *     采集）端到端可用」，无需向用户求证。
  *
- * 输出末尾附 **nextActions**（结构化建议：哪个会话死该 close、rootfs 缺该
- * ubuntu.install、DNS 断该 linux.network…），Agent 拿到即可行动。
+ * 输出末尾附 **nextActions**（结构化建议：哪个会话死该 close、后端不可用该
+ * 读 detail…），Agent 拿到即可行动。
  *
  * JSON Schema (input):
  *   { smokeTest?: boolean }   —— true = 额外跑一次真实 exec 探针
@@ -38,7 +38,7 @@ class TerminalDiagnosticsTool(
         One-shot terminal stack diagnostics: live sessions (state/exit/backend), backend
         availability, and an optional REAL exec smoke test proving the agent→terminal chain
         end-to-end. Use this first when terminal behavior looks broken (dead sessions,
-        write failures, Ubuntu won't start) — it returns structured findings plus
+        write failures) — it returns structured findings plus
         nextActions you can execute immediately.
     """.trimIndent()
 
@@ -65,15 +65,8 @@ class TerminalDiagnosticsTool(
                     put("pid", JsonPrimitive(s.session.pid))
                     s.session.lastExitCode?.let { put("lastExitCode", JsonPrimitive(it)) }
                     // backend 语义推断（SessionSnapshot 不带 backend 字段 ——
-                    // shell=proot/bash → linux-ubuntu；否则 local）
-                    put(
-                        "backend",
-                        JsonPrimitive(
-                            if (s.session.shell.contains("bash", true) ||
-                                s.session.shell.contains("proot", true)
-                            ) "linux-ubuntu" else "local"
-                        )
-                    )
+                    // Theocracy 只有 local 后端，恒报 local）
+                    put("backend", JsonPrimitive("local"))
                     s.foregroundJob?.let { put("foregroundJob", JsonPrimitive(it.command)) }
                     if (s.session.state.name in DEAD_STATES) {
                         put("verdict", JsonPrimitive("DEAD"))
@@ -92,9 +85,6 @@ class TerminalDiagnosticsTool(
                     b.detail?.let { put("detail", JsonPrimitive(it)) }
                 })
                 when {
-                    b.state == "NEEDS_ROOTFS" -> nextActions.add(
-                        "backend '${b.id}' needs rootfs — call TerminalUbuntuInstall first (offline, minutes)"
-                    )
                     b.state == "FAILED" -> nextActions.add(
                         "backend '${b.id}' failed: ${b.detail ?: "unknown"}"
                     )

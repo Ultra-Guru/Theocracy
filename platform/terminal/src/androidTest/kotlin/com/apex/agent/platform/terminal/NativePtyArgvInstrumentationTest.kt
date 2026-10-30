@@ -3,10 +3,8 @@ package com.apex.agent.platform.terminal
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.*
-import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.File
 
 /**
  * P71 — REAL-JNI instrumentation tests for the generalized argv spawn path (N1).
@@ -21,11 +19,9 @@ import java.io.File
  *   3. explicit env overrides reach the child;
  *   4. exec failure → child exits 127;
  *   5. two argv sessions stay isolated;
- *   6. libproot.so packaging: jniLibs → nativeLibraryDir → PRootHostEnvironment
- *      staging + NativeLibraryPRootBinaryProvider verify (real ELF bytes);
- *   7. full PRoot chain via forkpty→execv(libproot.so …): proot -r / + /system/bin/sh
- *      (ptrace-capable devices; self-skips where ptrace is restricted);
- *   8. device-side spawn latency numbers (P71 benchmark data).
+ *   6. device-side spawn latency numbers (P71 benchmark data).
+ *
+ * （历史：libproot 打包校验与 PRoot 全链路验证已随 Ubuntu/PRoot 栈剥离移除。）
  *
  * CI LIMITATION: no emulator in this repo's CI — compiled there
  * (compileDebugAndroidTestKotlin), executed on device via
@@ -194,118 +190,6 @@ class NativePtyArgvInstrumentationTest {
             assertFalse("B must NOT see A's marker: '$outB'", outB.contains("marker-A-only"))
         } finally {
             pty.nativeCloseSession(a); pty.nativeCloseSession(b)
-        }
-    }
-
-    // ═══════════════ 6. libproot.so packaging on device ═══════════════
-
-    @Test
-    fun prootBinaryPackagedAndVerifiable() {
-        val nativeDir = File(context.applicationInfo.nativeLibraryDir)
-        val proot = File(nativeDir, "libproot.so")
-        assumeTrue(
-            "libproot.so must be packaged (useLegacyPackaging + jniLibs) — nativeDir=$nativeDir",
-            proot.exists()
-        )
-        assertTrue("libproot.so must be executable", proot.canExecute())
-        // loader + talloc 也应就位（proot 运行时依赖）
-        assertTrue(File(nativeDir, "libproot-loader.so").exists())
-        assertTrue(File(nativeDir, "libtalloc.so").exists())
-
-        // 真实 ELF 头校验（NativeLibraryPRootBinaryProvider）
-        val header = proot.inputStream().use { it.readNBytes(20) }
-        assertTrue("ELF magic", header[0] == 0x7f.toByte() && header[1] == 'E'.code.toByte())
-
-        // staging + host env 构造（不 exec —— 见 test 7 的执行验证）
-        val env = com.apex.agent.platform.terminal.proot.PRootHostEnvironment(
-            nativeLibraryDir = nativeDir.absolutePath,
-            baseDir = context.filesDir,
-            cacheDir = context.cacheDir
-        )
-        val prepared = env.prepare()
-        assertTrue("staging prepare must succeed: ${prepared.exceptionOrNull()}", prepared.isSuccess)
-        val hostEnv = env.hostEnv()
-        assertTrue(hostEnv.containsKey("PROOT_TMP_DIR"))
-        assertTrue(hostEnv.containsKey("PROOT_LOADER"))
-        assertTrue(File(context.filesDir, "linux/bin/libtalloc.so.2").exists())
-    }
-
-    // ═══════════════ 7. full PRoot chain via forkpty→execv ═══════════════
-
-    @Test
-    fun prootChainSpawnsViaArgvAndEchoes() {
-        val nativeDir = File(context.applicationInfo.nativeLibraryDir)
-        assumeTrue("libproot.so must be packaged", File(nativeDir, "libproot.so").exists())
-        assumeTrue(
-            "device must allow ptrace of own children (proot requirement)",
-            prootCanRun(nativeDir)
-        )
-
-        val env = com.apex.agent.platform.terminal.proot.PRootHostEnvironment(
-            nativeLibraryDir = nativeDir.absolutePath,
-            baseDir = context.filesDir,
-            cacheDir = context.cacheDir
-        )
-        env.prepare().getOrThrow()
-        val hostEnv = env.hostEnv()
-
-        // proot -r / (Android 本机作为 rootfs) -- /system/bin/env -i … /system/bin/sh -c 'echo …'
-        // T88：argv 形状与生产一致（env trampoline，无 -E —— 捆绑 proot 5.1.107
-        // 不支持该选项）。rootfs=/ 时 trampoline 落在 Android 宿主文件系统上，
-        // /system/bin/env 是 toybox 的一部分（API 23+ 必有）。
-        val argv = arrayOf(
-            File(nativeDir, "libproot.so").absolutePath,
-            "-r", "/",
-            "--kill-on-exit",
-            "-w", "/data/local/tmp",
-            "--",
-            "/system/bin/env", "-i", "TERM=dumb",
-            "/system/bin/sh", "-c", "echo P71_PROOT_CHAIN_OK"
-        )
-        val envKeys = hostEnv.keys.toTypedArray()
-        val envVals = hostEnv.values.toTypedArray()
-
-        val id = pty.nativeCreateSessionArgv(argv, "/data/local/tmp", envKeys, envVals, 24, 80)
-        assertTrue("proot session should spawn (id=$id)", id > 0)
-        try {
-            // proot 启动 = fork+exec + ptrace attach + 首次翻译 —— 给足窗口
-            pty.nativeWaitForData(id, 15_000)
-            val out = String(drainFor(id, 15_000), Charsets.UTF_8)
-            assertTrue(
-                "proot guest echo must round-trip (got: '$out')",
-                out.contains("P71_PROOT_CHAIN_OK")
-            )
-            val exit = waitForExit(id, 15_000)
-            assertEquals("proot must pass guest exit code through", 0, exit)
-        } finally {
-            pty.nativeCloseSession(id)
-        }
-    }
-
-    /** pre-check: proot 能否在本机运行（ptrace 能力探针）。 */
-    private fun prootCanRun(nativeDir: File): Boolean {
-        return try {
-            val env = com.apex.agent.platform.terminal.proot.PRootHostEnvironment(
-                nativeLibraryDir = nativeDir.absolutePath,
-                baseDir = context.filesDir,
-                cacheDir = context.cacheDir
-            )
-            env.prepare().getOrNull() ?: return false
-            val pb = ProcessBuilder(
-                listOf(
-                    File(nativeDir, "libproot.so").absolutePath,
-                    "-r", "/", "--kill-on-exit", "--", "/system/bin/true"
-                )
-            )
-            pb.environment().clear()
-            pb.environment().putAll(env.hostEnv())
-            val proc = pb.start()
-            proc.inputStream.bufferedReader().readText()
-            proc.errorStream.bufferedReader().readText()
-            proc.waitFor() == 0
-        } catch (e: Throwable) {
-            println("prootCanRun failed: ${e.message}")
-            false
         }
     }
 

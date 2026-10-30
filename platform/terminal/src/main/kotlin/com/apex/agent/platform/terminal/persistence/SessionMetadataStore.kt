@@ -17,7 +17,7 @@ import java.io.File
  *
  * What's persisted:
  *   - Session metadata (id, shell, cwd, pid, rows, cols, privilege, state, cursor, createdAt, lastExitCode)
- *   - T73 (v2): backend metadata (backendId/rootfsId/workspaceDir/guestCwd/binds)
+ *   - T73 (v2): backend metadata (backendId/workspaceDir/guestCwd/binds)
  *   - Job metadata (id, sessionId, command, owner, background, startCursor, endCursor, state, exitCode, startedAt, finishedAt)
  *   - Recent events (last N per session — default 100)
  *
@@ -49,10 +49,10 @@ class SessionMetadataStore(
         val exitReason: String? = null,  // PR #54 §11: why session ended
         val lastExitCode: Int?, val cursor: Long,
         val jobs: List<JobRecord>, val recentEvents: List<EventRecord>,
-        // ── T73 (schema v2): 执行后端元数据（crash 后恢复时可区分本地/Ubuntu 会话）──
+        // ── T73 (schema v2): 执行后端元数据（crash 后恢复时可区分会话来源；
+        //    历史 rootfsId 字段已随 Linux 栈移除，旧记录的未知键被 ignoreUnknownKeys 容忍）──
         val backendId: String? = null,       // null = v1 记录（语义上等同 "local"）
-        val rootfsId: String? = null,
-        // ── T75 (schema v3): 会话绑定的 workspace id（LINUX）──
+        // ── T75 (schema v3): 会话绑定的 workspace id（历史 LINUX 语义）──
         val workspaceId: String? = null,
         val workspaceDir: String? = null,
         val guestCwd: String? = null,
@@ -86,7 +86,6 @@ class SessionMetadataStore(
             jobs = jobs.map { it.toRecord() },
             recentEvents = recentEvents.takeLast(maxRecentEvents).map { it.toRecord() },
             backendId = session.backend?.backendId,
-            rootfsId = session.backend?.rootfsId,
             workspaceId = session.backend?.workspaceId,
             workspaceDir = session.backend?.workspaceDir,
             guestCwd = session.backend?.guestCwd,

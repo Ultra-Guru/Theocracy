@@ -10,8 +10,8 @@ import org.junit.Test
 
 /**
  * #170 TerminalProactivityAdvisor 单测 —— 连发一次性 shell 触发 SESSION_FLOW /
- * TerminalCreate 清零 / 工具链关键词触发 ENSURE_UBUNTU 一次性 / 失败连击提示 /
- * 无关工具不触发。
+ * TerminalCreate 清零 / 失败连击提示 / 无关工具不触发。
+ *（ENSURE_UBUNTU 环境预备建议已随 Ubuntu/PRoot 栈剥离移除。）
  */
 class TerminalProactivityAdvisorTest {
 
@@ -57,44 +57,6 @@ class TerminalProactivityAdvisorTest {
         // 攒到 6 才再次提醒
         repeat(3) { advisor.onToolCallCompleted("ShellExecute", succeeded = true) }
         assertEquals(Kind.SESSION_FLOW, advisor.onIterationStart("x")!!.kind)
-    }
-
-    // ═══════════════════════ ENSURE_UBUNTU ═══════════════════════
-
-    @Test
-    fun `toolchain keyword in user prompt triggers ENSURE_UBUNTU once per session`() {
-        val advisor = TerminalProactivityAdvisor()
-        val advice = advisor.onIterationStart("帮我在项目里 npm install 并构建")
-        assertNotNull(advice)
-        assertEquals(Kind.ENSURE_UBUNTU, advice!!.kind)
-        assertTrue(advice.systemNote.contains("TerminalUbuntuEnsure"))
-        // 每会话最多一次
-        assertNull(advisor.onIterationStart("继续 cargo build"))
-    }
-
-    @Test
-    fun `toolchain keyword in recent one-shot args triggers ENSURE_UBUNTU`() {
-        val advisor = TerminalProactivityAdvisor()
-        advisor.onToolCallCompleted("ShellExecute", succeeded = true, args = """{"command":"git clone https://example.com/repo"}""")
-        val advice = advisor.onIterationStart("继续")
-        assertNotNull("近期命令参数含 git clone 应触发", advice)
-        assertEquals(Kind.ENSURE_UBUNTU, advice!!.kind)
-    }
-
-    @Test
-    fun `ubuntu probe seen suppresses ENSURE_UBUNTU`() {
-        val advisor = TerminalProactivityAdvisor()
-        advisor.onToolCallCompleted("TerminalBackends", succeeded = true)
-        assertNull("模型已探测过后端，不再给预备建议", advisor.onIterationStart("pip install requests"))
-        advisor.onToolCallCompleted("TerminalUbuntuStatus", succeeded = true)
-        assertNull(advisor.onIterationStart("apt install curl"))
-    }
-
-    @Test
-    fun `non toolchain prompt does not trigger ENSURE_UBUNTU`() {
-        val advisor = TerminalProactivityAdvisor()
-        assertNull(advisor.onIterationStart("讲个笑话"))
-        assertNull(advisor.onIterationStart("帮我读一下 /sdcard/notes.txt"))
     }
 
     // ═══════════════════════ 失败连击 ═══════════════════════

@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentHashMap
  * 多会话元数据的唯一权威，控制台会话标签行（多对话）的唯一数据源。
  *
  * backend 由创建方记录（runtime 快照不含该信息）。线程模型：ConcurrentHashMap
- * （DepCenter 在 Dispatchers.IO 里写 meta，主线程 refresh 同时读）。
+ * （IO 线程写 meta，主线程 refresh 同时读）。
  */
 data class SessionTab(
     val id: Long,
@@ -21,9 +21,7 @@ data class SessionTab(
     val state: String,
     val isAlive: Boolean,
     val title: String?
-) {
-    val isUbuntu: Boolean get() = backendId == SessionRegistry.BACKEND_UBUNTU
-}
+)
 
 class SessionRegistry(private val runtime: TerminalRuntime) {
 
@@ -117,14 +115,13 @@ class SessionRegistry(private val runtime: TerminalRuntime) {
     /** 当前所有已知会话 id。 */
     fun liveIds(): Set<Long> = _sessionTabs.value.asSequence().map { it.id }.toSet()
 
-    private fun inferRuntimeType(shell: String): String =
-        if (shell.contains("bash", true) || shell.contains("proot", true)) "LINUX" else "ANDROID_LOCAL"
+    private fun inferRuntimeType(shell: String): String = "ANDROID_LOCAL"
 
     companion object {
         /** 执行后端常量（T96 自旧 TerminalViewModel 顶部转移；与 platform
-         *  ExecutionBackendRegistry 的注册 id 逐字一致）。 */
+         *  ExecutionBackendRegistry 的注册 id 逐字一致）。Theocracy 仅 local
+         *  后端（Ubuntu/PRoot 已随 Linux 栈移除）。 */
         const val BACKEND_LOCAL = "local"
-        const val BACKEND_UBUNTU = "linux-ubuntu"
 
         /** 无创建方记录的会话（Agent 创建 / 进程恢复）的展示标签。 */
         const val BACKEND_AGENT = "agent"
