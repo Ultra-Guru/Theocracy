@@ -1,6 +1,5 @@
 package com.apex.agent.core.engine
 
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -8,9 +7,10 @@ import org.junit.Test
  * Capability Introspection 提示词组装测试。
  *
  * 覆盖（PR：能力自省与自主扩展）：
- * 1. 系统提示词新增 "## Capability Expansion Playbook" 段：六条扩展梯度
- *    （工具目录 / CapabilityReport 自省 / 技能市场 / MCP / Linux 工具链 /
- *    提权请求）+ 「验证后再报成功」与「没爬完梯度不许说不可能」护栏；
+ * 1. 系统提示词新增 "## Capability Expansion Playbook" 段：四条扩展梯度
+ *    （工具目录 / CapabilityReport 自省 / Android 终端 / 提权请求）
+ *    + 「验证后再报成功」与「没爬完梯度不许说不可能」护栏
+ *    （Theocracy：技能市场 / MCP / Linux 工具链三条路线随五域剥离移除）；
  * 2. 权限段换源 PrivilegeLadder（阶梯全貌 + 升级路径 + 不盲试护栏），
  *    heading 保留原始串（既有测试兼容）；
  * 3. Tool-Use Policy 第 8 条指向扩展攻略；
@@ -30,20 +30,16 @@ class CapabilityPromptTest {
 
     @Test
     fun `playbook section lists all four expansion routes`() {
-        // Theocracy：skill / mcp / market 域已剥离 —— 六条路线收敛为四条
-        //（工具目录 / 实时自检 / Android 终端 / 权限墙）。
         val p = prompt()
         assertTrue(p.contains("## Capability Expansion Playbook (MANDATORY before saying I can't)"))
+        // 四条梯度逐一在场（技能/MCP/Linux 工具链路线随五域剥离移除）
         assertTrue(p.contains("1. INSTALLED TOOLS"))
+        assertTrue(p.contains("ToolSearch(query)"))
         assertTrue(p.contains("2. LIVE SELF-CHECK"))
         assertTrue(p.contains("CapabilityReport()"))
         assertTrue(p.contains("3. ANDROID TERMINAL"))
         assertTrue(p.contains("TerminalExec"))
         assertTrue(p.contains("4. PRIVILEGE WALL"))
-        // 剥离域不得再出现在攻略里
-        assertFalse(p.contains("SKILLS"))
-        assertFalse(p.contains("MarketSearch"))
-        assertFalse(p.contains("MCP SERVERS"))
     }
 
     @Test
@@ -103,13 +99,9 @@ class CapabilityPromptTest {
     // ── Tool-Use Policy 第 8 条 ───────────────────────────────
 
     @Test
-    fun `tool use policy routes missing capabilities through catalog`() {
-        // Theocracy：第 8 条改指工具目录链（ToolSearch → ToolOpen →
-        // CapabilityReport 自检），不再引用 Playbook 术语。
+    fun `tool use policy points to the playbook`() {
         val p = prompt()
-        assertTrue(p.contains("call ToolSearch to find"))
-        assertTrue(p.contains("ToolOpen to load it"))
-        assertTrue(p.contains("CapabilityReport() to self-check"))
+        assertTrue(p.contains("climb the Capability Expansion Playbook"))
     }
 
     // ── 段落顺序 ─────────────────────────────────────────────

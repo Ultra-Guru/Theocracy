@@ -115,8 +115,7 @@ class HotContentStoreTest {
         assertEquals("1.4.5.3", env.prefs.targetVname)
         assertEquals("v1.4.5.3", env.prefs.tag)
         assertEquals(PKG_SHA_A, env.prefs.pkgSha)
-        // overlay 读取：技能清单 / id 集 / 目录文件
-        assertEquals(listOf("""{"id":"api-design"}"""), store.activeSkillManifests())
+        // overlay 读取：id 集 / 目录文件（清单原文读取随技能域剥离移除）
         assertEquals(setOf("api-design"), store.activeSkillIds())
         assertEquals(1, store.activeCatalogFiles().size)
         assertTrue(store.hasActiveContent())
@@ -160,7 +159,6 @@ class HotContentStoreTest {
     @Test
     fun `readers are empty before any apply`() {
         val store = Env().store(45)
-        assertTrue(store.activeSkillManifests().isEmpty())
         assertTrue(store.activeSkillIds().isEmpty())
         assertTrue(store.activeCatalogFiles().isEmpty())
         assertFalse(store.hasActiveContent())
@@ -174,15 +172,12 @@ class HotContentStoreTest {
         val store = env.store(45)
         val stage = stagingWith(env.filesDir, skills = mapOf("good" to """{"id":"good"}"""))
         assertTrue(store.applyPackage(stage, manifest46, null, null))
-        // 模拟半写状态：active/skills 里塞一个损坏 JSON。activeSkillManifests 的
-        // 契约是**防御式 IO**（读得动的都返回；JSON 合法性由下游 installBundled
-        // 的单条隔离兑底）—— 损坏内容照常读出，计数不变
+        // 模拟半写状态：active/skills 里塞一个损坏 JSON。activeSkillIds 的
+        // 契约是**防御式 IO**（目录里有就算；JSON 合法性由下游消费方单条隔离
+        // 兜底）—— 损坏文件同样计入 id 集（清理白名单语义）
         val activeSkills = File(File(env.filesDir, "hot"), "active/skills")
         File(activeSkills, "broken.json").writeText("""{not json""")
 
-        val manifests = store.activeSkillManifests()
-        assertEquals(2, manifests.size)
-        // id 集仍按文件名计（清理白名单语义），包含损坏条目
         assertEquals(setOf("good", "broken"), store.activeSkillIds())
     }
 
