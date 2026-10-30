@@ -107,6 +107,9 @@ fun TemplateStudioScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 when (tab) {
+                    // CODING 工位页签在 Theocracy 不暴露（模板域待重设计）——
+                    // 枚举值保留仅为序列化兼容，本屏无对应内容。
+                    TemplateScope.CODING -> {}
                     TemplateScope.AGENT -> {
                         // ═══ Agent 角色详细设置（复用设置页组件，生效链路同源）═══
                         item(key = "agent-roles") {
