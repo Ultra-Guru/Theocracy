@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Apex Agent</string>
+    <string name="app_name">Theocracy</string>
     <!-- NOT a dead key (3-E verified): platform/privilege res/xml/accessibility_config.xml
          references @string/accessibility_description as the accessibility service
          description shown in system Settings — deleting it would break AAPT link.
