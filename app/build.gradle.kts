@@ -52,7 +52,12 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.apex.agent"
+        // Theocracy 独立装机身份：applicationId 从 Android-Guru-Agent 的
+        // com.apex.agent 分道 —— 备份域 / FileProvider·Shizuku authorities
+        // （Manifest 全走 ${applicationId} 占位符）随新包名独立，旧 com.apex.agent
+        // 装机互不覆盖（新装而非升级）。namespace 维持 com.apex.agent：代码包
+        // 结构 / R 类 / Manifest 组件类名引用全部不动，避免无谓的 import 重写。
+        applicationId = "com.apex.theocracy"
         minSdk = 26
         // ── 真机红线修复：targetSdk 必须 ≤ 28 ─────────────────────────────
         // targetSdk ≥ 29 的 app 运行在 SELinux untrusted_app 域，Android 10 起
