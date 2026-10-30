@@ -4,7 +4,6 @@ import android.content.Context
 import com.apex.agent.core.engine.*
 import com.apex.agent.core.engine.compression.ArchivingCompressor
 import com.apex.agent.core.engine.compression.ContextCompressor
-import com.apex.agent.core.engine.ExecutionMemoryObserver
 import com.apex.agent.core.engine.compression.HybridCompressor
 import com.apex.agent.core.engine.compression.ToolOutputTruncator
 import com.apex.agent.core.engine.goal.FastModelGoalVerifier
@@ -208,7 +207,6 @@ object AgentModule {
         contextCompressor: ContextCompressor,
         privilegeInfoProvider: PrivilegeInfoProvider,
         environmentInfoProvider: EnvironmentInfoProvider,
-        memoryObserver: ExecutionMemoryObserver,
         // 根因修复：已连接服务（GitHub/连接器）注入系统提示词，模型才知道
         // github_* / connector_* 工具已就绪可主动使用
         connectedServicesProvider: AndroidConnectedServicesProvider,
@@ -235,7 +233,6 @@ object AgentModule {
             contextArchive = contextArchive,
             privilegeInfoProvider = privilegeInfoProvider,
             environmentInfoProvider = environmentInfoProvider,
-            memoryObserver = memoryObserver,
             connectedServicesProvider = connectedServicesProvider,
             modelRuntime = modelRuntime,
             toolActivation = toolActivation,
