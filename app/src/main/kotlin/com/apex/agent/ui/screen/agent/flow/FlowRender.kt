@@ -1,6 +1,7 @@
 package com.apex.agent.ui.screen.agent.flow
 
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
@@ -25,6 +26,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -141,7 +143,7 @@ internal fun FlowCursor(tempo: Float, color: Color, modifier: Modifier = Modifie
     // 呼吸对亮度的调制幅度：tempo=1 → 不呼吸（恒亮）；tempo=0 → 全幅呼吸
     val breatheDepth = (1f - tempo).coerceIn(0f, 1f) * 0.45f
     val baseAlpha = 0.35f + tempo * 0.6f
-    val barHeight = 10.dp + tempo * 4.dp
+    val barHeight = (10f + tempo * 4f).dp
     Canvas(modifier = modifier.size(width = 5.dp, height = barHeight)) {
         val w = this.size.width
         val h = this.size.height
