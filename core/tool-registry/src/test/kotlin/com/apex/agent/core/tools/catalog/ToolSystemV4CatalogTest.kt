@@ -340,29 +340,6 @@ class ToolSystemV4CatalogTest {
     }
 
     // ── MCP naming ────────────────────────────────────────────────
-
-    @Test
-    fun `mcp tool ids are namespaced and collision free`() {
-        // v5：Mcp{Server}{Tool}，无分隔符 PascalCase（用户规格：名字里没有 - / _）
-        // 服务器名自报大小写原样保留（GitHub → McpGitHub…），工具名逐段首字母大写
-        assertEquals(
-            "McpGitHubCreateIssue",
-            McpToolNaming.toolId("GitHub", "create_issue")
-        )
-        assertEquals(
-            "McpMyServerList",
-            McpToolNaming.toolId("My Server", "list")
-        )
-        assertEquals(
-            McpToolNaming.toolId("My Server", "x"),
-            McpToolNaming.toolId("my-server", "x")
-        )
-        assertEquals("Srv", McpToolNaming.slug("!!!"))
-    }
-
-    @Test
-    fun `mcp ids are provider-legal without sanitization`() {
-        val id = McpToolNaming.toolId("Fancy Server 2", "do.thing!")
-        assertEquals(ToolNameSanitizer.sanitize(id), id)
-    }
+    // Theocracy：MCP 域已剥离（重新设计后再接回）—— McpToolNaming 测试
+    // 随 McpAgentTool.kt 一并移除。
 }
