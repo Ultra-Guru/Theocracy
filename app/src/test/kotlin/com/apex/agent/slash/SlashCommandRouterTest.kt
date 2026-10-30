@@ -37,7 +37,6 @@ class SlashCommandRouterTest {
         val route = SlashCommandRouter.route(cmd)
 
         assertEquals("🔗 使用连接器: ssh", route.systemMessage)
-        assertFalse(route.requestGithubConnect)
         assertTrue(route.agentPrompt.contains("/connector:ssh"))
         assertTrue(route.agentPrompt.contains("host=1.2.3.4"))
     }
@@ -50,7 +49,6 @@ class SlashCommandRouterTest {
         // 插件工具桥已激活（IApexPluginHost + PluginManager 真实注册）：
         // 路由词应指向已注册的插件工具，并引导模型直接调用。
         assertEquals("📦 插件: pdf_reader（工具已注册进 Agent 工具表）", route.systemMessage)
-        assertFalse(route.requestGithubConnect)
         assertTrue(route.agentPrompt.contains("/plugin:pdf_reader"))
         assertTrue(route.agentPrompt.contains("已注册进 ToolRegistry"))
         assertFalse(route.agentPrompt.contains("尚未接线"))
@@ -84,7 +82,6 @@ class SlashCommandRouterTest {
         assertTrue(route.agentPrompt.contains("使用 briefing_run 工具生成今日简报"))
         assertEquals("plugin", route.routeKind)
         assertEquals("briefing", route.sourceName)
-        assertFalse(route.requestGithubConnect)
     }
 
     @Test
@@ -139,7 +136,6 @@ class SlashCommandRouterTest {
 
         assertEquals("⚡ 指令: /help", route.systemMessage)
         assertEquals("/help", route.agentPrompt)
-        assertFalse(route.requestGithubConnect)
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -153,7 +149,6 @@ class SlashCommandRouterTest {
         val cmd = SlashCommand.Connector(id = "ssh")
         val route = SlashCommandRouter.route(cmd)
 
-        assertFalse(route.requestGithubConnect)
         assertTrue(route.agentPrompt.contains("/connector:ssh"))
     }
 }
