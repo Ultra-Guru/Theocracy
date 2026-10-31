@@ -10,6 +10,8 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.apex.agent.R
+import com.apex.agent.platform.terminal.io.InputOwner
+import com.apex.agent.platform.terminal.io.TerminalKey
 import com.apex.agent.platform.terminal.profile.GuestShellProfile
 import com.apex.agent.platform.terminal.runtime.TerminalRuntime
 import com.apex.agent.ui.language.LanguageManager
@@ -290,6 +292,47 @@ class TerminalViewModel @Inject constructor(
         input = value
         historyIndex = -1
         savedLiveInput = ""
+    }
+
+    // ═══ VT 模式（terminal 十连 PR 8/10）—— TerminalView 全屏交互桥的写链 ═══
+    // 终端页可在「控制台行视图」与「VT 交互视图」间切换：VT 视图（terminal-view
+    // 模块的 T88 Termux 级自绘 View）自带 IME/手势/选区，输入经本组方法写入
+    // runtime（owner=USER）；快照回喍走 styledScreenFlow（人机共视：Agent 的
+    // read_screen 与人类看到的是同一份 VT 态）。
+
+    /** VT 视图的 styled 快照流（与 read_screen 同源 —— 人机共视）。 */
+    fun vtSnapshotFlow(sessionId: Long) = terminalRuntime.styledScreenFlow(sessionId)
+
+    /** VT 视图文本输入（IME/粘贴，TerminalView 已归一 \n→\r）。 */
+    fun vtWriteText(sessionId: Long, text: String) {
+        viewModelScope.launch {
+            terminalRuntime.write(sessionId, InputOwner.USER, kind = TerminalRuntime.WriteKind.RAW, text = text)
+        }
+    }
+
+    /** VT 视图特殊键（方向/F 键/Home 等 —— runtime 键编码链）。 */
+    fun vtWriteKey(sessionId: Long, key: TerminalKey) {
+        viewModelScope.launch {
+            terminalRuntime.write(sessionId, InputOwner.USER, kind = TerminalRuntime.WriteKind.KEY, key = key)
+        }
+    }
+
+    /** VT 视图控制字符（Ctrl+字母等，直接字节写入）。 */
+    fun vtWriteControlChar(sessionId: Long, code: Int) {
+        viewModelScope.launch {
+            terminalRuntime.write(
+                sessionId, InputOwner.USER,
+                kind = TerminalRuntime.WriteKind.RAW,
+                bytes = byteArrayOf(code.toByte()),
+            )
+        }
+    }
+
+    /** VT 视图 resize 握手（视口 → 网格 → PTY TIOCSWINSZ）。 */
+    fun vtResize(sessionId: Long, rows: Int, cols: Int) {
+        viewModelScope.launch {
+            terminalRuntime.resize(sessionId, rows, cols)
+        }
     }
 
     /** ↑/↓ 历史召回（entries 最新在前；↑=更旧，↓=更新，越过末位回实时位）。 */

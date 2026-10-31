@@ -29,9 +29,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.Article
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
@@ -50,10 +52,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -62,9 +66,12 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.apex.agent.R
+import com.apex.agent.terminalview.TerminalView
+import com.apex.agent.terminalview.TerminalViewSettings
 import kotlinx.coroutines.delay
 
 /**
@@ -91,6 +98,8 @@ fun TerminalScreen(
         var showEnvCenter by rememberSaveable { mutableStateOf(false) }
         var showHistory by rememberSaveable { mutableStateOf(false) }
         var showSettings by rememberSaveable { mutableStateOf(false) }
+        // T-VIEW（PR 8/10）：控制台行视图 ↔ VT 交互视图（人机共视）切换
+        var vtMode by rememberSaveable { mutableStateOf(false) }
 
         // 亮屏（设置项）
         val view = LocalView.current
@@ -123,6 +132,13 @@ fun TerminalScreen(
                         }
                     },
                     actions = {
+                        // T-VIEW：视图切换（VT 全屏交互 ↔ 控制台行式）
+                        IconButton(onClick = { vtMode = !vtMode }) {
+                            Icon(
+                                if (vtMode) Icons.Outlined.Article else Icons.Outlined.Terminal,
+                                stringResource(if (vtMode) R.string.term_view_mode_console else R.string.term_view_mode_vt),
+                            )
+                        }
                         IconButton(onClick = { showHistory = true }) {
                             Icon(Icons.Outlined.History, stringResource(R.string.term_history_title))
                         }
@@ -156,9 +172,9 @@ fun TerminalScreen(
                 Spacer(Modifier.height(8.dp))
                 NoticeBar(notice)
                 Spacer(Modifier.height(8.dp))
-                ConsoleBody(viewModel, activeId, settings.fontSize, Modifier.weight(1f))
+                ConsoleBody(viewModel, activeId, settings.fontSize, Modifier.weight(1f), vtMode)
                 Spacer(Modifier.height(8.dp))
-                InputBar(viewModel)
+                if (!vtMode) InputBar(viewModel)
             }
         }
 
@@ -287,7 +303,8 @@ private fun ConsoleBody(
     viewModel: TerminalViewModel,
     activeId: Long?,
     fontSize: Int,
-    modifier: Modifier
+    modifier: Modifier,
+    vtMode: Boolean,
 ) {
     val sessions by viewModel.sessions.collectAsStateWithLifecycle()
     val tab = sessions.firstOrNull { it.id == activeId }
@@ -301,10 +318,49 @@ private fun ConsoleBody(
             when {
                 tab == null -> EmptySessionPanel(viewModel)
                 !tab.isAlive -> DeadSessionOverlay(viewModel, tab)
+                // T-VIEW：VT 交互视图（TerminalView 自带 IME —— 输入栏隐藏）
+                vtMode -> VtPane(viewModel, tab, fontSize)
                 else -> ConsoleLinesPane(viewModel, tab, fontSize)
             }
         }
     }
+}
+
+/**
+ * T-VIEW（PR 8/10）：VT 全屏交互视图 —— terminal-view 的 T88 Termux 级自绘
+ * View（Canvas 网格/滚动/选区/IME）接回终端页。
+ *
+ * 人机共视：styledScreenFlow 与 Agent read_screen 同源（同一 ObservationEngine
+ * 的 VT 态）—— 人类看到的与 Agent 读到的一致；resize 握手（视口→网格→PTY
+ * TIOCSWINSZ）经 [VtTerminalBridge] 回传。
+ */
+@Composable
+private fun VtPane(viewModel: TerminalViewModel, tab: SessionTab, fontSize: Int) {
+    val context = LocalContext.current
+    val viewRef = remember(tab.id) { mutableStateOf<TerminalView?>(null) }
+
+    // 快照回喍：styledScreenFlow（33ms 节流）→ TerminalView.submit
+    LaunchedEffect(tab.id) {
+        viewModel.vtSnapshotFlow(tab.id)?.collect { snapshot ->
+            viewRef.value?.submit(snapshot)
+        }
+    }
+
+    AndroidView(
+        modifier = Modifier.fillMaxSize(),
+        factory = { ctx ->
+            TerminalView(ctx).apply {
+                attach(
+                    VtTerminalBridge(ctx, viewModel, tab.id),
+                    TerminalViewSettings(fontSizeSp = fontSize.toFloat()),
+                )
+                viewRef.value = this
+            }
+        },
+        update = { view ->
+            view.updateSettings(TerminalViewSettings(fontSizeSp = fontSize.toFloat()))
+        },
+    )
 }
 
 /** 输出行流 + 当前输入行（真实输出渲染核心）。本地 shell 提示符恒为 "$"。 */

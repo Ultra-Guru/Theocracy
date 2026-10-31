@@ -67,4 +67,6 @@
     <string name="term_remove">移除</string>
     <string name="term_policy_empty">空 —— 一切放行</string>
     <string name="term_env_hint">名单跨重启持久化，并与 Agent 侧运行时策略共享。</string>
+    <string name="term_view_mode_vt">切换到交互 VT 视图</string>
+    <string name="term_view_mode_console">切换到控制台行视图</string>
 </resources>
