@@ -126,3 +126,31 @@ jobs:
           ./gradlew :core:plugin-market:test \
             --tests "com.apex.agent.plugin.market.skill.SkillIntegrityTest" \
             --no-daemon -Pkotlin.incremental=false
+
+  # ── 7/10 · MCP 声明与注册表（servers.json 硬门槛 / 引用计数 / 绑定校验）──
+  mcp-declaration-registry:
+    name: "Plugin 7/10 · MCP Declaration & Registry"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-gradle-android
+      - name: Run MCP declaration tests
+        run: |
+          ./gradlew :core:plugin-market:test \
+            --tests "com.apex.agent.plugin.market.mcp.McpDeclarationTest" \
+            --no-daemon -Pkotlin.incremental=false
+
+  # ── 8/10 · MCP 工具清洗（不可信 description / 注入标记 / 零宽剥离）──
+  mcp-tool-sanitizer:
+    name: "Plugin 8/10 · MCP Tool Sanitizer"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-gradle-android
+      - name: Run local registry + sanitizer tests
+        run: |
+          ./gradlew :core:plugin-market:test \
+            --tests "com.apex.agent.plugin.market.mcp.LocalMcpRegistryTest" \
+            --no-daemon -Pkotlin.incremental=false
