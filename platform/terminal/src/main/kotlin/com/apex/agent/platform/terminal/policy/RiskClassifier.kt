@@ -1,5 +1,11 @@
 package com.apex.agent.platform.terminal.policy
 
+// enum 常量需显式导入（同文件顶层 enum 的条目也不会自动进入作用域）
+import com.apex.agent.platform.terminal.policy.RiskLevel.CRITICAL
+import com.apex.agent.platform.terminal.policy.RiskLevel.DANGEROUS
+import com.apex.agent.platform.terminal.policy.RiskLevel.MUTATING
+import com.apex.agent.platform.terminal.policy.RiskLevel.READ_ONLY
+
 /**
  * T-RISK — 四级命令风险分类器（terminal 十连 PR 4/10）。
  *
@@ -64,9 +70,9 @@ class RiskClassifier {
 
     private sealed interface Piece
 
-    private data class CommandPiece(val text: String)
+    private data class CommandPiece(val text: String) : Piece
 
-    private data class RedirectPiece(val target: String, val append: Boolean)
+    private data class RedirectPiece(val target: String, val append: Boolean) : Piece
 
     private fun segment(line: String): List<Piece> {
         val out = mutableListOf<Piece>()

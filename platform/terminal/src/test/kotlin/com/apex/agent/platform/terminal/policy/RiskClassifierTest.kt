@@ -1,5 +1,9 @@
 package com.apex.agent.platform.terminal.policy
 
+import com.apex.agent.platform.terminal.policy.RiskLevel.CRITICAL
+import com.apex.agent.platform.terminal.policy.RiskLevel.DANGEROUS
+import com.apex.agent.platform.terminal.policy.RiskLevel.MUTATING
+import com.apex.agent.platform.terminal.policy.RiskLevel.READ_ONLY
 import com.apex.agent.platform.terminal.io.InputOwner
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
