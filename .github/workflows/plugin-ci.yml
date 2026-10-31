@@ -154,3 +154,17 @@ jobs:
           ./gradlew :core:plugin-market:test \
             --tests "com.apex.agent.plugin.market.mcp.LocalMcpRegistryTest" \
             --no-daemon -Pkotlin.incremental=false
+
+  # ── 9/10 · 执行管线（四档审批 / 确认流防重放 / 审计脱敏 / 全路径留痕）──
+  pipeline-permission-audit:
+    name: "Plugin 9/10 · Pipeline Permission & Audit"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-gradle-android
+      - name: Run pipeline + permission + audit tests
+        run: |
+          ./gradlew :core:plugin-market:test \
+            --tests "com.apex.agent.plugin.market.pipeline.*" \
+            --no-daemon -Pkotlin.incremental=false
