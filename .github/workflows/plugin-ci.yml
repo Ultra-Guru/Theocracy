@@ -81,6 +81,13 @@ jobs:
         run: |
           ./gradlew :core:plugin-market:compileKotlin \
             --no-daemon -Pkotlin.incremental=false
+      - name: Drop browser-kit checkout before repo-wide budget scans
+        run: |
+          # composite build 检出的兄弟仓库不是本仓源码 —— check_file_size /
+          # check_code_quality 全仓扫描会把它误计入预算（库仓库的
+          # BrowserEngine.kt 1590 行 / BrowserScript.kt 1389 行已在库仓自己的
+          # 门禁管辖，本仓不重复执法）。编译已完成，检出目录可安全移除。
+          rm -rf apex-kit-browser
       - name: File size budget (main 1200 / test 1600)
         run: ./scripts/check_file_size.sh
       - name: Anti-pattern gate (reflection dispatch / printStackTrace / empty catch)
