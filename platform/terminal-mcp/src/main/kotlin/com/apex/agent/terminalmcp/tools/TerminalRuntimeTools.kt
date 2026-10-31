@@ -17,6 +17,7 @@ import com.apex.agent.terminalmcp.McpToolDescriptor
 import com.apex.agent.terminalmcp.McpToolProvider
 import com.apex.agent.terminalmcp.event.EventJournal
 import com.apex.agent.terminalmcp.event.ToolMetrics
+import com.apex.agent.terminalmcp.process.ProcessRegistry
 import com.apex.agent.terminalmcp.security.SecurityGate
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonArray
@@ -60,6 +61,8 @@ class TerminalRuntimeTools(
     private val journal: EventJournal? = null,
     /** T-JOURNAL：每工具 p50/p95 延迟与错误率（内存窗口）。 */
     private val metrics: ToolMetrics? = null,
+    /** T-PROC（PR 7/10）：托管进程注册表（长任务非阻塞 poll 的簿记层）。 */
+    private val processes: ProcessRegistry = ProcessRegistry(),
 ) : McpToolProvider {
 
     @Volatile
@@ -252,6 +255,73 @@ class TerminalRuntimeTools(
                 }
             },
         ),
+        McpToolDescriptor(
+            name = TOOL_PROCESS_SPAWN,
+            description = "Spawn a long-running command (npm run dev / logcat tail / builds) in its own " +
+                "session and return a handle immediately (non-blocking). Poll output with " +
+                "process_read, terminate with process_kill. Same security gate as run.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("command") {
+                        put("type", "string")
+                        put("description", "command line to run in the background")
+                    }
+                    putJsonObject("name") {
+                        put("type", "string")
+                        put("description", "optional human-readable label for process_list")
+                    }
+                }
+                putJsonArray("required") { add(JsonPrimitive("command")) }
+            },
+        ),
+        McpToolDescriptor(
+            name = TOOL_PROCESS_READ,
+            description = "Non-blocking incremental output poll for a spawned process. Pass the " +
+                "returned cursor as from_cursor on the next call. Exited processes stay readable " +
+                "(final output + exit code via process_list).",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("session_id") {
+                        put("type", "integer")
+                        put("description", "the process handle (session_id from process_spawn)")
+                    }
+                    putJsonObject("from_cursor") {
+                        put("type", "integer")
+                        put("description", "read output after this cursor (use previous call's cursor)")
+                    }
+                    putJsonObject("max_bytes") {
+                        put("type", "integer")
+                        put("default", 20000)
+                    }
+                }
+                putJsonArray("required") { add(JsonPrimitive("session_id")) }
+            },
+        ),
+        McpToolDescriptor(
+            name = TOOL_PROCESS_LIST,
+            description = "List spawned processes with alive state, exit codes and total output bytes.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") { }
+            },
+        ),
+        McpToolDescriptor(
+            name = TOOL_PROCESS_KILL,
+            description = "Terminate a spawned process (SIGTERM, grace period, then SIGKILL — " +
+                "the runtime's three-stage cancellation). The shell session itself survives.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("session_id") {
+                        put("type", "integer")
+                        put("description", "the process handle")
+                    }
+                }
+                putJsonArray("required") { add(JsonPrimitive("session_id")) }
+            },
+        ),
     )
 
     override suspend fun find(name: String): McpToolDescriptor? =
@@ -270,6 +340,10 @@ class TerminalRuntimeTools(
                 TOOL_WRITE -> writeInput(arguments)
                 TOOL_GATE_STATUS -> gateStatus(arguments)
                 TOOL_EVENTS -> events(arguments)
+                TOOL_PROCESS_SPAWN -> processSpawn(arguments)
+                TOOL_PROCESS_READ -> processRead(arguments)
+                TOOL_PROCESS_LIST -> processList()
+                TOOL_PROCESS_KILL -> processKill(arguments)
                 else -> McpToolCallOutcome(text = "unknown tool: $name", isError = true)
             }
         } catch (t: Throwable) {
@@ -613,6 +687,135 @@ class TerminalRuntimeTools(
         return McpToolCallOutcome(text = "ok", structured = structured)
     }
 
+    // ─── 托管进程（T-PROC）───
+
+    /**
+     * 派生长任务到独立会话：与 run 同门控（写入前评估），独立会话保持非阻塞 ——
+     * 立即返回 handle，Agent 用 process_read 按游标增量收割。
+     */
+    private suspend fun processSpawn(arguments: JsonObject): McpToolCallOutcome {
+        val command = arguments.stringArg("command")
+            ?: return invalidParams("process_spawn requires string param: command")
+        val name = arguments.stringArg("name") ?: command.take(40)
+
+        journal?.record("command_proposed", "tool" to "process_spawn", "cmd" to command)
+        val gateDecision = securityGate.evaluate(command, null)
+        if (gateDecision is SecurityGate.GateDecision.Blocked) {
+            journal?.record("gate_decision", "decision" to "block", "cmd" to command)
+            return McpToolCallOutcome(
+                text = "blocked",
+                structured = buildJsonObject {
+                    put("ok", false); put("status", "blocked")
+                    put("risk", gateDecision.assessment.level.name)
+                    put("reason", gateDecision.assessment.reason)
+                },
+                isError = true,
+            )
+        }
+        if (gateDecision is SecurityGate.GateDecision.RequireConfirmation) {
+            journal?.record("gate_decision", "decision" to "require_confirm", "cmd" to command)
+            return McpToolCallOutcome(
+                text = "confirmation_required",
+                structured = buildJsonObject {
+                    put("ok", false); put("status", "confirmation_required")
+                    put("confirm_id", gateDecision.confirmId)
+                    put("hint", "human approval pending — retry after approval")
+                },
+                isError = true,
+            )
+        }
+
+        // 独立会话（非共享）—— 长任务不阻塞短命令链
+        val created = runtime.create().getOrElse { return toolError(it) }
+        val runResult = runtime.run(created.sessionId, command, InputOwner.AGENT, background = true)
+            .getOrElse { return toolError(it) }
+        processes.register(
+            ProcessRegistry.ProcessRecord(
+                sessionId = created.sessionId,
+                jobId = runResult.jobId,
+                name = name,
+                createdAt = System.currentTimeMillis(),
+                startCursor = runResult.startCursor,
+            ),
+        )
+        journal?.record("process_spawned", "session" to created.sessionId, "cmd" to command)
+        val structured = buildJsonObject {
+            put("session_id", created.sessionId)
+            put("job_id", runResult.jobId)
+            put("name", name)
+            put("cursor", runResult.startCursor)
+        }
+        return McpToolCallOutcome(text = "ok", structured = structured)
+    }
+
+    /** 非阻塞增量读：from_cursor 起的 RAW 输出（退出进程保留可读）。 */
+    private suspend fun processRead(arguments: JsonObject): McpToolCallOutcome {
+        val sessionId = arguments.longArg("session_id")
+            ?: return invalidParams("process_read requires integer param: session_id")
+        val record = processes.find(sessionId)
+            ?: return invalidParams("unknown process handle: $sessionId (see process_list)")
+        val fromCursor = arguments.longArg("from_cursor") ?: record.startCursor
+        val maxBytes = (arguments.intArg("max_bytes") ?: DEFAULT_MAX_OUTPUT_BYTES)
+            .coerceIn(MIN_OUTPUT_BYTES, MAX_OUTPUT_BYTES_CAP)
+        val observed = runtime.observe(
+            sessionId,
+            mode = TerminalRuntime.ObserveMode.RAW,
+            afterCursor = fromCursor,
+            maxBytes = maxBytes,
+        ).getOrElse { return toolError(it) }
+        val sessionSemantic = runtime.snapshot(TerminalRuntime.SnapshotMode.SESSIONS)
+            .getOrNull()?.sessions?.firstOrNull { it.session.id == sessionId }
+        val structured = buildJsonObject {
+            put("session_id", sessionId)
+            put("output", observed.raw ?: "")
+            put("cursor", observed.endCursor ?: fromCursor)
+            put("truncated", observed.truncated)
+            put("alive", sessionSemantic?.session?.state?.isAliveState == true)
+            putNullableInt("exit_code", sessionSemantic?.session?.lastExitCode)
+        }
+        return McpToolCallOutcome(text = "ok", structured = structured)
+    }
+
+    /** 注册表 × runtime 状态对账（退出/消失如实上报）。 */
+    private suspend fun processList(): McpToolCallOutcome {
+        val snapshot = runtime.snapshot(TerminalRuntime.SnapshotMode.SESSIONS).getOrNull()
+        val semanticById = snapshot?.sessions?.associateBy { it.session.id } ?: emptyMap()
+        val structured = buildJsonObject {
+            put("count", processes.size())
+            put(
+                "processes",
+                JsonArray(processes.list().map { record ->
+                    val semantic = semanticById[record.sessionId]
+                    buildJsonObject {
+                        put("session_id", record.sessionId)
+                        put("name", record.name)
+                        put("alive", semantic?.session?.state?.isAliveState == true)
+                        put("state", semantic?.session?.state?.name ?: "GONE")
+                        putNullableInt("exit_code", semantic?.session?.lastExitCode)
+                        put("created_at", record.createdAt)
+                    }
+                }),
+            )
+        }
+        return McpToolCallOutcome(text = "ok", structured = structured)
+    }
+
+    /** 收尸：runtime.cancel 的三级序列（SIGTERM → 宽限 → SIGKILL）。 */
+    private suspend fun processKill(arguments: JsonObject): McpToolCallOutcome {
+        val sessionId = arguments.longArg("session_id")
+            ?: return invalidParams("process_kill requires integer param: session_id")
+        val record = processes.find(sessionId)
+            ?: return invalidParams("unknown process handle: $sessionId (see process_list)")
+        val cancelled = runtime.cancel(sessionId, record.jobId).getOrElse { return toolError(it) }
+        journal?.record("process_killed", "session" to sessionId, "final_state" to cancelled.finalState)
+        val structured = buildJsonObject {
+            put("session_id", sessionId)
+            put("cancelled", cancelled.cancelled)
+            put("final_state", cancelled.finalState)
+        }
+        return McpToolCallOutcome(text = "ok", structured = structured)
+    }
+
     // ─── 共享会话 ───
 
     /**
@@ -669,6 +872,10 @@ class TerminalRuntimeTools(
         const val TOOL_WRITE = "write"
         const val TOOL_GATE_STATUS = "gate_status"
         const val TOOL_EVENTS = "events"
+        const val TOOL_PROCESS_SPAWN = "process_spawn"
+        const val TOOL_PROCESS_READ = "process_read"
+        const val TOOL_PROCESS_LIST = "process_list"
+        const val TOOL_PROCESS_KILL = "process_kill"
 
         /** run 默认等待预算：60s（Agent 客户端工具超时的常见默认值下限）。 */
         const val DEFAULT_TIMEOUT_MS = 60_000L
