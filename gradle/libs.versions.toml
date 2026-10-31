@@ -68,6 +68,11 @@ compose-material-icons = "1.7.8"
 # 1.10.3 消费端可用）；仅引 compose 核心（不引 m2/m3 主题模块，避免与本项目
 # Material3 主题冲突）。
 vico = "1.13.1"
+# NanoHTTPD —— terminal-mcp 的 Streamable HTTP 传输服务器（Maven Central 终版
+# 2016，功能冻结但久经考验；thread-per-connection 与「纯 JSON 响应」最小合规
+# 路线匹配。官方 MCP Kotlin SDK 需 Ktor 全家桶 + RikkaHub 维护 fork ——
+# Android 内嵌场景偏重，选型 ADR 见 terminal 十连 PR 1/10 描述）
+nanohttpd = "2.3.1"
 
 [libraries]
 # Compose
@@ -147,6 +152,9 @@ browser-chrome = { group = "com.apex.browser", name = "browser-chrome", version.
 
 # Vico 开源图表库（Maven Central，稳定线 1.13.1）—— 任务历史统计可视化
 vico-compose = { group = "com.patrykandpatrick.vico", name = "compose", version.ref = "vico" }
+
+# MCP 服务器 HTTP 传输（terminal-mcp 模块；Maven Central）
+nanohttpd = { group = "org.nanohttpd", name = "nanohttpd", version.ref = "nanohttpd" }
 
 # Room
 room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }

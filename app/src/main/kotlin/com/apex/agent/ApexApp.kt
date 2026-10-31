@@ -13,6 +13,7 @@ import com.apex.agent.notify.ForegroundTracker
 import com.apex.agent.platform.EnvironmentStateUpdater
 import com.apex.agent.platform.privilege.PrivilegeDetector
 import com.apex.agent.platform.privilege.PrivilegeManager
+import com.apex.agent.terminalmcp.McpServerManager
 import com.apex.agent.core.logging.LogCategory
 import com.apex.agent.core.logging.LogLevel
 import coil.ImageLoader
@@ -73,6 +74,10 @@ class ApexApp : Application(), Configuration.Provider, ImageLoaderFactory {
     @Inject
     lateinit var settingsRepository: com.apex.agent.ui.screen.settings.SettingsRepository
 
+    /** terminal 十连 PR 1/10：MCP 服务器（Agent 可调用终端的对外协议面）。 */
+    @Inject
+    lateinit var mcpServerManager: McpServerManager
+
     /** 后台启动任务专用 scope（SupervisorJob：单任务失败不殊及兄弟任务）。 */
     private val appScope = CoroutineScope(
         // v1.4.9 闪退防御：追加 CoroutineExceptionHandler —— 旧实现裸 SupervisorJob，
@@ -132,6 +137,12 @@ class ApexApp : Application(), Configuration.Provider, ImageLoaderFactory {
         // 落 CoreServiceGate（toggle 直连 apply 保留 —— 双发幂等：
         // onStartCommand 为幂等重申；stopService 停态 no-op）。
         initKeepAliveServiceSync()
+
+        // terminal 十连 PR 1/10：MCP 传输基座启动（幂等；仅绑定 127.0.0.1 +
+        // Bearer 鉴权，enabled=false 时不监听）。工具面自 PR 2/10 起接入
+        // TerminalRuntime —— 启动失败不阻断宿主进程（Failed 状态可观察）。
+        runCatching { mcpServerManager.start() }
+            .onFailure { Log.w("ApexAgent", "MCP server start failed: ${it.message}") }
     }
 
     /**

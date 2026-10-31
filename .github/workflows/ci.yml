@@ -353,6 +353,7 @@ jobs:
             :app:compileDebugKotlin \
             :app:testDebugUnitTest \
             :platform:terminal:testDebugUnitTest \
+            :platform:terminal-mcp:testDebugUnitTest \
             :terminal-emulator:testDebugUnitTest \
             :terminal-view:testDebugUnitTest \
             :platform:terminal:compileDebugAndroidTestKotlin \

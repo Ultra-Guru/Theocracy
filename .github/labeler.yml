@@ -24,6 +24,7 @@ terminal:
   - changed-files:
       - any-glob-to-any-file:
           - platform/terminal/**
+          - platform/terminal-mcp/**
           - terminal-emulator/**
 
 plugins:
