@@ -7,10 +7,10 @@ import android.content.Intent
 import android.net.Uri
 import com.apex.agent.platform.terminal.io.TerminalKey
 import com.apex.agent.terminalview.TerminalContextMenuItem
-import com.apex.agent.terminalview.TerminalMouseEventType
 import com.apex.agent.terminalview.TerminalViewClient
 import com.apex.agent.terminalemulator.MouseTrackingMode
 import com.apex.agent.terminalemulator.TerminalKey as VtKey
+import com.apex.agent.terminalemulator.TerminalMouseEventType
 
 /**
  * T-VIEW — TerminalView ↔ TerminalRuntime 桥（terminal 十连 PR 8/10）。
@@ -106,7 +106,7 @@ class VtTerminalBridge(
     }
 
     private fun clipboard(): ClipboardManager? =
-        ContextCompat.getSystemService(context, ClipboardManager::class.java)
+        context.getSystemService(ClipboardManager::class.java)
 
     /** VT 键枚举（terminal-emulator）→ Runtime 写链键枚举（platform io）。 */
     private fun mapKey(key: VtKey): TerminalKey? = when (key) {
