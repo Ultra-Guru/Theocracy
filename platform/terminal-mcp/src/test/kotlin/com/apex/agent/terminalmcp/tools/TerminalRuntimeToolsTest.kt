@@ -355,7 +355,8 @@ class TerminalRuntimeToolsTest {
         val provider = tools(FakeRuntime())
         assertNotNull(provider.find("run"))
         assertNotNull(provider.find("read_screen"))
-        assertNull(provider.find("process_spawn"))
+        assertNotNull(provider.find("process_spawn"))
+        assertNull(provider.find("close"))
     }
 
     // ─── 安全门控（T-GATE）───
@@ -541,7 +542,7 @@ class TerminalRuntimeToolsTest {
 
     @Test
     fun `process list merges registry with runtime state`() = runTest {
-        val fake = FakeRuntime().apply { withSession(300, lastExitCode = 0) }
+        val fake = FakeRuntime().apply { withSession(100, lastExitCode = 0) }
         val provider = tools(fake)
         provider.call("process_spawn", args("command" to textArg("npm run dev")))
         val handle = fake.recordedRuns.single().first
@@ -552,6 +553,7 @@ class TerminalRuntimeToolsTest {
         val entry = list[0].jsonObject
         assertEquals(handle, entry["session_id"]!!.jsonPrimitive.content.toLong())
         assertEquals(true, entry["alive"]!!.jsonPrimitive.content.toBoolean())
+        assertEquals("READY", entry["state"]!!.jsonPrimitive.content)
     }
 
     @Test
