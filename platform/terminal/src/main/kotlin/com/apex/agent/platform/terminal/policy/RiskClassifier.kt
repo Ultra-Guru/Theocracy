@@ -299,12 +299,14 @@ class RiskClassifier {
     private fun wrapperRisk(exe: String, args: List<String>, depth: Int): RiskAssessment = when (exe) {
         "sh", "bash", "zsh", "dash", "ash", "ksh", "mksh" -> {
             val cIndex = args.indexOfFirst { it == "-c" || it.startsWith("-c") }
-            val payload = if (cIndex >= 0 && cIndex + 1 < args.size) {
-                args[cIndex + 1]
-            } else {
+            if (cIndex < 0 || cIndex + 1 >= args.size) {
                 // 无 -c：`sh script`（脚本内容不可见）或裸子 shell —— 动态执行保守归高危
                 return RiskAssessment(DANGEROUS, "'$exe' without -c payload (script/subshell: unanalyzable)")
             }
+            // 载荷 = -c 起的全部剩余词拼接（引号内空格已被 tokenize 摊平，拼接还原；
+            // 无引号形态（sh -c rm -rf /x，真实 shell 只执行首词）属于保守上探 ——
+            // 多分不会低估风险）。
+            val payload = args.drop(cIndex + 1).joinToString(" ")
             val inner = classify(payload)
             if (inner.level >= DANGEROUS) inner else RiskAssessment(inner.level, "'$exe' -c wraps: ${inner.reason}")
         }
@@ -314,10 +316,11 @@ class RiskClassifier {
             else classify(payload)
         }
         "trap" -> {
-            // PR#756：跳过恰为 `--` 的词（≤8 次且只跳 `--`）再取载荷
+            // PR#756：跳过恰为 `--` 的词（≤8 次且只跳 `--`）再取载荷；载荷至行尾拼接
+            //（tokenize 摊平了引号内空格；尾部 SIGNAL 名作为额外命令段保守上探）。
             val payload = args.dropWhileIndexed { idx, token -> idx < 8 && token == "--" }
-                .firstOrNull { it != "--" }
-            if (payload == null) RiskAssessment(DANGEROUS, "trap payload not statically visible")
+                .joinToString(" ")
+            if (payload.isBlank()) RiskAssessment(DANGEROUS, "trap payload not statically visible")
             else classify(payload)
         }
         "xargs" -> {
