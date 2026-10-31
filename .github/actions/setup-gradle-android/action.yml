@@ -1,0 +1,85 @@
+name: "Setup JDK + Android SDK + Gradle"
+description: >
+  plugin-ci 专用共享装配：browser-kit 钉版检出（composite build 前提）+
+  JDK 17 + Android SDK 完整性（NDK 三重防线，与 ci.yml unit-tests 对齐）+
+  Gradle 8.14 wrapper。抽 composite action 是为 10 个检查项 job 共用
+  同一段 80 行 setup —— 漂移面从 10 份收敛到 1 份。
+
+runs:
+  using: "composite"
+  steps:
+    - name: Read apex-kit-browser pin
+      id: bkitpin
+      shell: bash
+      run: |
+        set -euo pipefail
+        PIN=$(head -n 1 gradle/browser-kit.lock 2>/dev/null || true)
+        echo "sha=${PIN:-main}" >> "$GITHUB_OUTPUT"
+
+    - name: Checkout apex-kit-browser (browser-kit composite build, pinned)
+      uses: actions/checkout@v4
+      with:
+        repository: Ultra-Guru/apex-kit-browser
+        ref: ${{ steps.bkitpin.outputs.sha }}
+        path: apex-kit-browser
+        token: ${{ github.token }}
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Configure pre-installed Android SDK
+      shell: bash
+      run: |
+        echo "ANDROID_HOME=$ANDROID_HOME"
+        # NDK 27.0.12077973 由 :terminal-native 显式 ndkVersion 钉版。
+        # 三重防线（与 ci.yml / apk.yml / release.yml 对齐）：
+        #   1) 完整性校验先行：已完好则零开销跳过；
+        #   2) sdkmanager 安装后校验，坏了立即清掉重试；
+        #   3) 仍失败 → dl.google.com 官方 zip 直下兜底。
+        NDK_VER="27.0.12077973"
+        NDK_DIR="$ANDROID_HOME/ndk/$NDK_VER"
+        if [ -f "$NDK_DIR/source.properties" ]; then
+          echo "OK: NDK $NDK_VER cached"
+        else
+          rm -rf "$NDK_DIR"
+          NDK_OK=0
+          for ATTEMPT in 1 2; do
+            if yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+                --install "ndk;$NDK_VER" >/dev/null 2>&1 && \
+               [ -f "$NDK_DIR/source.properties" ]; then
+              NDK_OK=1; break
+            fi
+            rm -rf "$NDK_DIR"
+            sleep 5
+          done
+          if [ "$NDK_OK" != "1" ]; then
+            echo "sdkmanager failed, falling back to direct zip"
+            rm -rf "$NDK_DIR" /tmp/ndk-r27.zip /tmp/ndk-extract
+            curl -sfL --retry 3 -o /tmp/ndk-r27.zip \
+              "https://dl.google.com/android/repository/android-ndk-r27-linux.zip"
+            unzip -q /tmp/ndk-r27.zip -d /tmp/ndk-extract
+            mkdir -p "$ANDROID_HOME/ndk"
+            mv /tmp/ndk-extract/android-ndk-r27 "$NDK_DIR"
+          fi
+          [ -f "$NDK_DIR/source.properties" ] \
+            && echo "OK: NDK $NDK_VER ready" \
+            || { echo "::error::NDK $NDK_VER install failed"; exit 1; }
+        fi
+        # SDK 平台/构建工具完整性校验
+        for COMP in "platforms;android-36" "build-tools;36.0.0"; do
+          if ! yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --list_installed 2>/dev/null | grep -q "$(echo $COMP | cut -d';' -f2)"; then
+            yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "$COMP" >/dev/null 2>&1 || true
+          fi
+        done
+
+    - name: Set up Gradle
+      uses: gradle/actions/setup-gradle@v4
+      with:
+        gradle-version: '8.14'
+
+    - name: Generate Gradle wrapper
+      shell: bash
+      run: gradle wrapper --gradle-version 8.14

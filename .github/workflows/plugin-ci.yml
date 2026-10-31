@@ -1,0 +1,99 @@
+name: Plugin Market CI
+
+# 插件市场域（core:plugin-market）专用检查项 —— 终态 10 项，随 PR 系列递增：
+#   PR-A（格式基座）  : 1-4（manifest 解析 / schema 校验 / 打包签名 / 编译预算）
+#   PR-B（Skill）     : 5-6（渐进式披露 / SHA-256 完整性）
+#   PR-C（MCP）       : 7-8（声明与注册表 / 工具清洗）
+#   PR-D（执行管线）  : 9（权限审批 + 审计脱敏）
+#   PR-E（生态摄入）  : 10（Claude/OpenCode 兼容 + 文档一致性）
+# 触发面只看插件市场域 —— 其它域的 PR 不跑这套（主 ci.yml 已覆盖其单测）。
+
+on:
+  pull_request:
+    paths:
+      - "core/plugin-market/**"
+      - "docs/plugin-market/**"
+      - ".github/workflows/plugin-ci.yml"
+      - ".github/actions/setup-gradle-android/**"
+  push:
+    branches: [main]
+    paths:
+      - "core/plugin-market/**"
+      - "docs/plugin-market/**"
+      - ".github/workflows/plugin-ci.yml"
+
+concurrency:
+  group: plugin-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── 1/10 · manifest 解析（Parser 契约：Spec 样例 round-trip + 防御式折叠）──
+  manifest-parse:
+    name: "Plugin 1/10 · Manifest Parse"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-gradle-android
+      - name: Run ManifestParser tests
+        run: |
+          ./gradlew :core:plugin-market:test \
+            --tests "com.apex.agent.plugin.market.format.ManifestParserTest" \
+            --no-daemon -Pkotlin.incremental=false
+
+  # ── 2/10 · manifest schema 校验（必填/格式/风险取值域/路径穿越全规则表）──
+  manifest-schema-validation:
+    name: "Plugin 2/10 · Manifest Schema Validation"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-gradle-android
+      - name: Run ManifestValidator tests
+        run: |
+          ./gradlew :core:plugin-market:test \
+            --tests "com.apex.agent.plugin.market.format.ManifestValidatorTest" \
+            --no-daemon -Pkotlin.incremental=false
+
+  # ── 3/10 · 打包/解包/签名（zip-slip 防线 + ES256 round-trip + 篡改检测）──
+  package-signature-roundtrip:
+    name: "Plugin 3/10 · Package & Signature"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-gradle-android
+      - name: Run package + signature tests
+        run: |
+          ./gradlew :core:plugin-market:test \
+            --tests "com.apex.agent.plugin.market.pkg.*" \
+            --no-daemon -Pkotlin.incremental=false
+
+  # ── 4/10 · 编译 + 结构质量（文件预算 / 反模式 / 括号平衡 —— 仓库硬性门禁在插件域的实例）──
+  plugin-compile-budget:
+    name: "Plugin 4/10 · Compile & Budget"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-gradle-android
+      - name: Compile core:plugin-market (Gradle toolchain)
+        run: |
+          ./gradlew :core:plugin-market:compileKotlin \
+            --no-daemon -Pkotlin.incremental=false
+      - name: Drop browser-kit checkout before repo-wide budget scans
+        run: |
+          # composite build 检出的兄弟仓库不是本仓源码 —— check_file_size /
+          # check_code_quality 全仓扫描会把它误计入预算（库仓库的
+          # BrowserEngine.kt 1590 行 / BrowserScript.kt 1389 行已在库仓自己的
+          # 门禁管辖，本仓不重复执法）。编译已完成，检出目录可安全移除。
+          rm -rf apex-kit-browser
+      - name: File size budget (main 1200 / test 1600)
+        run: ./scripts/check_file_size.sh
+      - name: Anti-pattern gate (reflection dispatch / printStackTrace / empty catch)
+        run: ./scripts/check_code_quality.sh
+      - name: Bracket balance (lexer-aware)
+        run: |
+          FILES=$(find core/plugin-market/src -name "*.kt")
+          # shellcheck disable=SC2086
+          python3 scripts/kotlin_balance.py $FILES
