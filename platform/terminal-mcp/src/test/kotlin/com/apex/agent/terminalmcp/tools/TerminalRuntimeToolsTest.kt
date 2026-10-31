@@ -332,10 +332,13 @@ class TerminalRuntimeToolsTest {
     // ─── 工具面元数据 ───
 
     @Test
-    fun `tool registry exposes eight tools with schemas`() = runTest {
+    fun `tool registry exposes twelve tools with schemas`() = runTest {
         val descriptors = tools(FakeRuntime()).listTools()
         assertEquals(
-            listOf("run", "list_sessions", "send_signal", "resize", "read_screen", "write", "gate_status", "events"),
+            listOf(
+                "run", "list_sessions", "send_signal", "resize", "read_screen", "write",
+                "gate_status", "events", "process_spawn", "process_read", "process_list", "process_kill",
+            ),
             descriptors.map { it.name },
         )
         descriptors.forEach {
@@ -352,7 +355,8 @@ class TerminalRuntimeToolsTest {
         val provider = tools(FakeRuntime())
         assertNotNull(provider.find("run"))
         assertNotNull(provider.find("read_screen"))
-        assertNull(provider.find("process_spawn"))
+        assertNotNull(provider.find("process_spawn"))
+        assertNull(provider.find("close"))
     }
 
     // ─── 安全门控（T-GATE）───
@@ -477,5 +481,91 @@ class TerminalRuntimeToolsTest {
         val provider = tools(FakeRuntime())
         val outcome = provider.call("events", args())
         assertTrue(outcome.isError)
+    }
+
+    // ─── 托管进程（T-PROC）───
+
+    @Test
+    fun `process spawn creates independent session and registers handle`() = runTest {
+        val fake = FakeRuntime().apply { withSession(100) }
+        val provider = tools(fake)
+        val outcome = provider.call(
+            "process_spawn",
+            args("command" to textArg("logcat -v time"), "name" to textArg("logs")),
+        )
+        assertFalse(outcome.isError)
+        val structured = outcome.structured!!
+        assertEquals("logs", structured["name"]!!.jsonPrimitive.content)
+        // 独立会话被创建（create 调用一次，且 run 在该会话后台执行）
+        assertEquals(1, fake.createCalls)
+        val (sessionId, command) = fake.recordedRuns.single()
+        assertEquals(structured["session_id"]!!.jsonPrimitive.content.toLong(), sessionId)
+        assertEquals("logcat -v time", command)
+    }
+
+    @Test
+    fun `process spawn dangerous command is gated`() = runTest {
+        val fake = FakeRuntime()
+        val provider = tools(fake)
+        val outcome = provider.call(
+            "process_spawn",
+            args("command" to textArg("rm -rf /sdcard/tmpdir")),
+        )
+        assertTrue(outcome.isError)
+        assertEquals("confirmation_required", outcome.structured!!["status"]!!.jsonPrimitive.content)
+        assertTrue("gated spawn must not reach runtime", fake.recordedRuns.isEmpty())
+    }
+
+    @Test
+    fun `process read polls incrementally by cursor`() = runTest {
+        val fake = FakeRuntime().apply {
+            withSession(200, lastExitCode = 0)
+            nextRawOutput = "chunk1"
+        }
+        val provider = tools(fake)
+        provider.call("process_spawn", args("command" to textArg("npm run dev")))
+        val handle = fake.recordedRuns.single().first
+
+        val first = provider.call("process_read", args("session_id" to kotlinx.serialization.json.JsonPrimitive(handle)))
+        assertFalse(first.isError)
+        assertEquals("chunk1", first.structured!!["output"]!!.jsonPrimitive.content)
+        val cursor = first.structured!!["cursor"]!!.jsonPrimitive.content.toLong()
+
+        // 第二次 poll 从上次游标起（fake 游标推进，观察 afterCursor = cursor）
+        fake.nextRawOutput = "chunk2"
+        val second = provider.call(
+            "process_read",
+            args("session_id" to kotlinx.serialization.json.JsonPrimitive(handle), "from_cursor" to kotlinx.serialization.json.JsonPrimitive(cursor)),
+        )
+        assertEquals("chunk2", second.structured!!["output"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `process list merges registry with runtime state`() = runTest {
+        val fake = FakeRuntime().apply { withSession(100, lastExitCode = 0) }
+        val provider = tools(fake)
+        provider.call("process_spawn", args("command" to textArg("npm run dev")))
+        val handle = fake.recordedRuns.single().first
+
+        val outcome = provider.call("process_list", args())
+        val list = outcome.structured!!["processes"]!!.jsonArray
+        assertEquals(1, list.size)
+        val entry = list[0].jsonObject
+        assertEquals(handle, entry["session_id"]!!.jsonPrimitive.content.toLong())
+        assertEquals(true, entry["alive"]!!.jsonPrimitive.content.toBoolean())
+        assertEquals("READY", entry["state"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `process kill invokes runtime cancel with registered job`() = runTest {
+        val fake = FakeRuntime().apply { withSession(400) }
+        val provider = tools(fake)
+        provider.call("process_spawn", args("command" to textArg("npm run dev")))
+        val handle = fake.recordedRuns.single().first
+        val jobId = 7L
+
+        val outcome = provider.call("process_kill", args("session_id" to kotlinx.serialization.json.JsonPrimitive(handle)))
+        assertFalse(outcome.isError)
+        assertEquals(handle to jobId, fake.recordedCancels.single())
     }
 }

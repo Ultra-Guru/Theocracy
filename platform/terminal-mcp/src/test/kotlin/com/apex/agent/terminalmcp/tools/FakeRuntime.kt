@@ -57,6 +57,10 @@ class FakeRuntime : TerminalRuntime {
     val recordedSignals = mutableListOf<Pair<Long, UnixSignal>>()
     val recordedResizes = mutableListOf<Triple<Long, Int, Int>>()
     val recordedWrites = mutableListOf<Triple<Long, TerminalRuntime.WriteKind, String?>>()
+    val recordedCancels = mutableListOf<Pair<Long, Long>>()
+    var nextCancelResult: Result<TerminalRuntime.CancelResult> = Result.success(
+        TerminalRuntime.CancelResult(cancelled = true, jobId = 7L, finalState = "INTERRUPTED"),
+    )
     var nextSignalResult: Result<TerminalRuntime.SignalResult> = Result.success(
         TerminalRuntime.SignalResult(sent = true, signal = UnixSignal.SIGINT, targetJobId = 7L, foregroundDelivered = true),
     )
@@ -174,8 +178,10 @@ class FakeRuntime : TerminalRuntime {
         return nextSignalResult
     }
 
-    override suspend fun cancel(sessionId: Long, jobId: Long): Result<TerminalRuntime.CancelResult> =
-        Result.success(TerminalRuntime.CancelResult(cancelled = true, jobId = jobId, finalState = "INTERRUPTED"))
+    override suspend fun cancel(sessionId: Long, jobId: Long): Result<TerminalRuntime.CancelResult> {
+        recordedCancels += sessionId to jobId
+        return nextCancelResult
+    }
 
     override suspend fun resize(sessionId: Long, rows: Int, cols: Int): Result<TerminalRuntime.ResizeResult> {
         recordedResizes += Triple(sessionId, rows, cols)
