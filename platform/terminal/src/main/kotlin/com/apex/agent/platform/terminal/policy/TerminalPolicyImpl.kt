@@ -20,7 +20,14 @@ import com.apex.agent.platform.terminal.io.InputOwner
 class TerminalPolicyImpl(
     private val privilege: PrivilegeLevel = PrivilegeLevel.NORMAL,
     private val commandPolicy: CommandPolicy = CommandPolicy(),
-    private val dynamicPolicy: (() -> CommandPolicy?)? = null
+    private val dynamicPolicy: (() -> CommandPolicy?)? = null,
+    /**
+     * T-RISK（terminal 十连 PR 4/10）：四级风险分类器。CRITICAL 级在 writePty
+     * 前硬拒 —— 纵深防御：MCP 门控（PR 5/10）之外的第二道独立边界，被绕过
+     * 时仍兕底。默认构造零配置（测试与既有调用点不变）。注：denylist 拒绝
+     * 的命令保留原拒绝理由，不重复分类。
+     */
+    private val riskClassifier: RiskClassifier = RiskClassifier(),
 ) : TerminalPolicy {
 
     override fun check(request: InputRequest): Decision {
@@ -45,6 +52,17 @@ class TerminalPolicyImpl(
         // CommandPermissionGate 确认门、RiskAwareToolGate —— 与 USER/SYSTEM
         // 路径此前已承担的残余风险一致（T85 KDoc 存档）。
         val decision = effective.checkSegments(cmd)
+        if (decision == CommandPolicyDecision.ALLOW) {
+            // T-RISK：CRITICAL 硬拒（不可逆灾难级：写块设备/提权/格式化/批量删根级
+            // 路径）。确定性词法判定，不依赖模型； denylist 未覆盖的形态（rm -rf /
+            // 不在内置名单）在此兑底。
+            val risk = riskClassifier.classify(cmd)
+            if (risk.level == RiskLevel.CRITICAL) {
+                return Decision.Deny(
+                    reason = "RISK_CRITICAL: ${risk.reason} — hard-blocked before PTY write"
+                )
+            }
+        }
         return mapDecision(decision, CommandParser.parse(cmd))
     }
 
