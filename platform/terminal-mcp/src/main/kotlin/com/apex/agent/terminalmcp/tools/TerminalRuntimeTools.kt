@@ -15,6 +15,8 @@ import com.apex.agent.platform.terminal.state.TerminalSemanticState
 import com.apex.agent.terminalmcp.McpToolCallOutcome
 import com.apex.agent.terminalmcp.McpToolDescriptor
 import com.apex.agent.terminalmcp.McpToolProvider
+import com.apex.agent.terminalmcp.event.EventJournal
+import com.apex.agent.terminalmcp.event.ToolMetrics
 import com.apex.agent.terminalmcp.security.SecurityGate
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonArray
@@ -54,6 +56,10 @@ class TerminalRuntimeTools(
     private val runtime: TerminalRuntime,
     /** T-GATE（PR 5/10）：写入前门控 —— 命令进入 PTY 前评估；Dangerous 人工确认、Critical 硬拒。 */
     private val securityGate: SecurityGate = SecurityGate(),
+    /** T-JOURNAL（PR 6/10）：JSONL 事件流（null = 不落盘 —— 既有测试默认形态）。 */
+    private val journal: EventJournal? = null,
+    /** T-JOURNAL：每工具 p50/p95 延迟与错误率（内存窗口）。 */
+    private val metrics: ToolMetrics? = null,
 ) : McpToolProvider {
 
     @Volatile
@@ -219,25 +225,66 @@ class TerminalRuntimeTools(
                 }
             },
         ),
+        McpToolDescriptor(
+            name = TOOL_EVENTS,
+            description = "Read the audit event journal (JSONL): command_proposed, gate_decision, " +
+                "command_executed, tool_call entries with risk levels, exit codes and durations. " +
+                "Filter by event_type, page with since_seq. Also returns per-tool p50/p95 latency metrics.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("limit") {
+                        put("type", "integer")
+                        put("default", 50)
+                        put("maximum", 500)
+                    }
+                    putJsonObject("event_type") {
+                        put("type", "string")
+                        putJsonArray("enum") {
+                            add(JsonPrimitive("command_proposed")); add(JsonPrimitive("gate_decision"))
+                            add(JsonPrimitive("command_executed")); add(JsonPrimitive("tool_call"))
+                        }
+                    }
+                    putJsonObject("since_seq") {
+                        put("type", "integer")
+                        put("description", "only entries with seq greater than this (cursor paging)")
+                    }
+                }
+            },
+        ),
     )
 
     override suspend fun find(name: String): McpToolDescriptor? =
         listTools().firstOrNull { it.name == name }
 
-    override suspend fun call(name: String, arguments: JsonObject): McpToolCallOutcome = try {
-        when (name) {
-            TOOL_RUN -> run(arguments)
-            TOOL_LIST_SESSIONS -> listSessions()
-            TOOL_SEND_SIGNAL -> sendSignal(arguments)
-            TOOL_RESIZE -> resize(arguments)
-            TOOL_READ_SCREEN -> readScreen(arguments)
-            TOOL_WRITE -> writeInput(arguments)
-            TOOL_GATE_STATUS -> gateStatus(arguments)
-            else -> McpToolCallOutcome(text = "unknown tool: $name", isError = true)
+    override suspend fun call(name: String, arguments: JsonObject): McpToolCallOutcome {
+        // T-JOURNAL：全部工具调用计时 + 度量 + 事件流（事件可重建，不散落 logcat）。
+        val startedAt = System.currentTimeMillis()
+        val outcome = try {
+            when (name) {
+                TOOL_RUN -> run(arguments)
+                TOOL_LIST_SESSIONS -> listSessions()
+                TOOL_SEND_SIGNAL -> sendSignal(arguments)
+                TOOL_RESIZE -> resize(arguments)
+                TOOL_READ_SCREEN -> readScreen(arguments)
+                TOOL_WRITE -> writeInput(arguments)
+                TOOL_GATE_STATUS -> gateStatus(arguments)
+                TOOL_EVENTS -> events(arguments)
+                else -> McpToolCallOutcome(text = "unknown tool: $name", isError = true)
+            }
+        } catch (t: Throwable) {
+            // Runtime 失败（TerminalError typed / legacy 字符串异常）→ 结构化错误面。
+            toolError(t)
         }
-    } catch (t: Throwable) {
-        // Runtime 失败（TerminalError typed / legacy 字符串异常）→ 结构化错误面。
-        toolError(t)
+        val durationMs = System.currentTimeMillis() - startedAt
+        metrics?.record(name, durationMs, outcome.isError)
+        journal?.record(
+            "tool_call",
+            "tool" to name,
+            "duration_ms" to durationMs,
+            "error" to outcome.isError,
+        )
+        return outcome
     }
 
     // ─── run ───
@@ -251,9 +298,15 @@ class TerminalRuntimeTools(
             .coerceIn(MIN_OUTPUT_BYTES, MAX_OUTPUT_BYTES_CAP)
 
         // T-GATE：写入前门控 —— 命令进入 PTY 前评估（进 PTY 后无法拦截）。
+        journal?.record("command_proposed", "session" to sessionId, "tool" to "run", "cmd" to command)
         val gateDecision = securityGate.evaluate(command, sessionId)
         when (gateDecision) {
             is SecurityGate.GateDecision.Blocked -> {
+                journal?.record(
+                    "gate_decision",
+                    "session" to sessionId, "decision" to "block",
+                    "risk" to gateDecision.assessment.level.name, "reason" to gateDecision.assessment.reason,
+                )
                 val structured = buildJsonObject {
                     put("ok", false)
                     put("status", "blocked")
@@ -263,6 +316,12 @@ class TerminalRuntimeTools(
                 return McpToolCallOutcome(text = structured.toString(), structured = structured, isError = true)
             }
             is SecurityGate.GateDecision.RequireConfirmation -> {
+                journal?.record(
+                    "gate_decision",
+                    "session" to sessionId, "decision" to "require_confirm",
+                    "confirm_id" to gateDecision.confirmId,
+                    "risk" to gateDecision.assessment.level.name, "reason" to gateDecision.assessment.reason,
+                )
                 val structured = buildJsonObject {
                     put("ok", false)
                     put("status", "confirmation_required")
@@ -274,8 +333,13 @@ class TerminalRuntimeTools(
                 }
                 return McpToolCallOutcome(text = structured.toString(), structured = structured, isError = true)
             }
-            is SecurityGate.GateDecision.Allowed -> // 继续执行；风险级别随结果返回（事件流审计同源）
-                Unit
+            is SecurityGate.GateDecision.Allowed -> {
+                journal?.record(
+                    "gate_decision",
+                    "session" to sessionId, "decision" to "allow",
+                    "risk" to gateDecision.assessment.level.name, "reason" to gateDecision.assessment.reason,
+                )
+            }
         }
 
         val startedAt = System.currentTimeMillis()
@@ -320,6 +384,14 @@ class TerminalRuntimeTools(
             put("output", limited.text)
             put("duration_ms", System.currentTimeMillis() - startedAt)
         }
+        // T-JOURNAL：执行结果入流（proposed → gate_decision → executed 全链可重放）。
+        journal?.record(
+            "command_executed",
+            "session" to sessionId, "cmd" to command,
+            "exit_code" to exitCode, "timed_out" to timedOut,
+            "truncated" to (limited.truncated || (observed?.truncated ?: false)),
+            "duration_ms" to (System.currentTimeMillis() - startedAt).toInt(),
+        )
         return McpToolCallOutcome(text = "ok", structured = structured)
     }
 
@@ -510,6 +582,37 @@ class TerminalRuntimeTools(
     /** 事件流时钟源（PR 6/10 接 EventJournal 后与事件时间戳同源）。 */
     private fun clockNow(): Long = System.currentTimeMillis()
 
+    // ─── events ───
+
+    /**
+     * 事件流查询（T-JOURNAL）：tail N + event_type 过滤 + since_seq 游标翻页；
+     * 附每工具 p50/p95 度量与 latest_seq（下次翻页起点）。
+     */
+    private suspend fun events(arguments: JsonObject): McpToolCallOutcome {
+        val journal = journal
+            ?: return toolError(RuntimeException("event journal not configured on this server"))
+        val limit = (arguments.intArg("limit") ?: 50).coerceIn(1, 500)
+        val eventType = arguments.stringArg("event_type")
+        val sinceSeq = arguments.longArg("since_seq") ?: 0L
+        val entries = journal.tail(limit, eventType, sinceSeq)
+        val metricsSnapshot = metrics?.snapshot() ?: emptyMap()
+        val structured = buildJsonObject {
+            put("events", JsonArray(entries.toList()))
+            put("latest_seq", journal.latestSeq())
+            putJsonObject("metrics") {
+                metricsSnapshot.forEach { (tool, summary) ->
+                    putJsonObject(tool) {
+                        put("calls", summary.calls)
+                        put("errors", summary.errors)
+                        put("p50_ms", summary.p50Ms)
+                        put("p95_ms", summary.p95Ms)
+                    }
+                }
+            }
+        }
+        return McpToolCallOutcome(text = "ok", structured = structured)
+    }
+
     // ─── 共享会话 ───
 
     /**
@@ -565,6 +668,7 @@ class TerminalRuntimeTools(
         const val TOOL_READ_SCREEN = "read_screen"
         const val TOOL_WRITE = "write"
         const val TOOL_GATE_STATUS = "gate_status"
+        const val TOOL_EVENTS = "events"
 
         /** run 默认等待预算：60s（Agent 客户端工具超时的常见默认值下限）。 */
         const val DEFAULT_TIMEOUT_MS = 60_000L
