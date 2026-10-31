@@ -240,7 +240,7 @@ class TerminalRuntimeTools(
                     }
                     putJsonObject("event_type") {
                         put("type", "string")
-                        put("enum") {
+                        putJsonArray("enum") {
                             add(JsonPrimitive("command_proposed")); add(JsonPrimitive("gate_decision"))
                             add(JsonPrimitive("command_executed")); add(JsonPrimitive("tool_call"))
                         }

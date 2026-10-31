@@ -96,8 +96,8 @@ class EventJournal(
         return entries.asSequence()
             .filter { seqOf(it) > sinceSeq }
             .filter { eventType == null || eventOf(it) == eventType }
-            .takeLast(limit)
             .toList()
+            .takeLast(limit)
     }
 
     /** 当前最大 seq（调用方翻页游标起点）。 */
