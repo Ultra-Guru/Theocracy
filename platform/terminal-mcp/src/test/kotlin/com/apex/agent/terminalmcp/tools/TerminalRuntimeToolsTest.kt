@@ -6,6 +6,7 @@ import com.apex.agent.platform.terminal.errors.TerminalOperationException
 import com.apex.agent.platform.terminal.io.UnixSignal
 import com.apex.agent.platform.terminal.session.SessionState
 import com.apex.agent.terminalmcp.McpToolProvider
+import com.apex.agent.terminalmcp.security.SecurityGate
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
@@ -331,10 +332,10 @@ class TerminalRuntimeToolsTest {
     // ─── 工具面元数据 ───
 
     @Test
-    fun `tool registry exposes seven tools with schemas`() = runTest {
+    fun `tool registry exposes eight tools with schemas`() = runTest {
         val descriptors = tools(FakeRuntime()).listTools()
         assertEquals(
-            listOf("run", "list_sessions", "send_signal", "resize", "read_screen", "write", "gate_status"),
+            listOf("run", "list_sessions", "send_signal", "resize", "read_screen", "write", "gate_status", "events"),
             descriptors.map { it.name },
         )
         descriptors.forEach {
@@ -419,5 +420,62 @@ class TerminalRuntimeToolsTest {
         // 未知 id
         val unknown = provider.call("gate_status", args("confirm_id" to textArg("nope")))
         assertEquals("unknown_or_expired", unknown.structured!!["status"]!!.jsonPrimitive.content)
+    }
+
+    // ─── 事件流（T-JOURNAL）───
+
+    @Test
+    fun `run produces replayable proposed-gate-executed chain in journal`() = runTest {
+        val fake = FakeRuntime().apply { withSession(100) }
+        val dir = kotlin.io.path.createTempDirectory("journal").toFile()
+        val journal = com.apex.agent.terminalmcp.event.EventJournal(dir)
+        val metrics = com.apex.agent.terminalmcp.event.ToolMetrics()
+        val provider = TerminalRuntimeTools(fake, SecurityGate(), journal, metrics)
+
+        val outcome = provider.call("run", args("command" to textArg("echo hi")))
+        assertFalse(outcome.isError)
+
+        val eventsResult = provider.call("events", args())
+        val events = eventsResult.structured!!["events"]!!.jsonArray
+        val types = events.map { it.jsonObject["event"]!!.jsonPrimitive.content }
+        assertTrue(types.contains("command_proposed"))
+        assertTrue(types.contains("gate_decision"))
+        assertTrue(types.contains("command_executed"))
+        assertTrue(types.contains("tool_call"))
+        // 提案事件携带命令与会话
+        val proposed = events.first { it.jsonObject["event"]!!.jsonPrimitive.content == "command_proposed" }.jsonObject
+        assertEquals("echo hi", proposed["cmd"]!!.jsonPrimitive.content)
+        assertEquals(100L, proposed["session"]!!.jsonPrimitive.content.toLong())
+        // 度量窗口有记录
+        assertTrue(eventsResult.structured!!["metrics"]!!.jsonObject.containsKey("run"))
+    }
+
+    @Test
+    fun `events tool filters by type and pages by seq`() = runTest {
+        val fake = FakeRuntime()
+        val dir = kotlin.io.path.createTempDirectory("journal").toFile()
+        val journal = com.apex.agent.terminalmcp.event.EventJournal(dir)
+        journal.record("tool_call", "tool" to "list_sessions", "duration_ms" to 5, "error" to false)
+        journal.record("command_proposed", "cmd" to "ls")
+        journal.record("tool_call", "tool" to "run", "duration_ms" to 9, "error" to false)
+        val provider = TerminalRuntimeTools(fake, SecurityGate(), journal)
+
+        val filtered = provider.call("events", args("event_type" to textArg("tool_call")))
+        val toolCalls = filtered.structured!!["events"]!!.jsonArray
+        assertEquals(2, toolCalls.size)
+
+        // 游标翻页：仅取 seq 大于第二条的
+        val secondSeq = toolCalls[1].jsonObject["seq"]!!.jsonPrimitive.content.toLong()
+        val next = provider.call("events", args("since_seq" to kotlinx.serialization.json.JsonPrimitive(secondSeq)))
+        assertTrue(next.structured!!["events"]!!.jsonArray.all {
+            it.jsonObject["seq"]!!.jsonPrimitive.content.toLong() > secondSeq
+        })
+    }
+
+    @Test
+    fun `events tool reports journal not configured when absent`() = runTest {
+        val provider = tools(FakeRuntime())
+        val outcome = provider.call("events", args())
+        assertTrue(outcome.isError)
     }
 }

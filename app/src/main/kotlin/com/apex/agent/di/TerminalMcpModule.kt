@@ -6,6 +6,8 @@ import com.apex.agent.terminalmcp.McpAuth
 import com.apex.agent.terminalmcp.McpConfigStore
 import com.apex.agent.terminalmcp.McpServerConfig
 import com.apex.agent.terminalmcp.McpServerManager
+import com.apex.agent.terminalmcp.event.EventJournal
+import com.apex.agent.terminalmcp.event.ToolMetrics
 import com.apex.agent.terminalmcp.security.SecurityGate
 import com.apex.agent.terminalmcp.tools.TerminalRuntimeTools
 import dagger.Module
@@ -66,12 +68,17 @@ object TerminalMcpModule {
     @Provides
     @Singleton
     fun provideMcpServerManager(
+        @ApplicationContext context: Context,
         store: McpConfigStore,
         runtime: TerminalRuntime,
     ): McpServerManager {
         // T-GATE（PR 5/10）：写入前门控单例 —— run/process_spawn 共用；人侧
         // 确认 UI（PR 9/10 控制中心）消费同一实例的 pendingFlow。
         val gate = SecurityGate()
-        return McpServerManager(store, TerminalRuntimeTools(runtime, gate))
+        // T-JOURNAL（PR 6/10）：JSONL 事件流落盘 filesDir/logs（2MB 双文件轮转）
+        // + 每工具 p50/p95 度量窗口。
+        val journal = EventJournal(java.io.File(context.filesDir, "logs"))
+        val metrics = ToolMetrics()
+        return McpServerManager(store, TerminalRuntimeTools(runtime, gate, journal, metrics))
     }
 }
