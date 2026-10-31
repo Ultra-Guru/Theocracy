@@ -25,6 +25,16 @@ import java.net.URL
  */
 class McpHttpServerTest {
 
+    companion object {
+        init {
+            // JDK HttpURLConnection 默认丢弃受限头（Origin 在清单内）—— Origin
+            // 白名单用例会因「头根本没发出」而静默失效。放开后才能真实验证
+            // 服务器的 DNS-rebinding 防护（已用独立 Java 复现验证：默认不发、
+            // 开关后发送）。
+            System.setProperty("sun.net.http.allowRestrictedHeaders", "true")
+        }
+    }
+
     private lateinit var server: McpHttpServer
     private var port: Int = 0
     private val token = "test-token-0123456789abcdef"

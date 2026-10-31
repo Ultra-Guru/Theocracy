@@ -21,7 +21,8 @@ data class McpServerConfig(
 ) {
     init {
         require(authToken.isNotBlank()) { "authToken must not be blank" }
-        require(port in 1..65535) { "port out of range: $port" }
+        // 0 = 系统分配临时端口（测试/诊断用）；生产固定端口（默认 8765）。
+        require(port in 0..65535) { "port out of range: $port" }
     }
 
     companion object {
