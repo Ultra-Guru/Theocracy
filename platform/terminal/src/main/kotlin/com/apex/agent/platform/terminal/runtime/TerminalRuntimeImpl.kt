@@ -155,6 +155,9 @@ class TerminalRuntimeImpl(
     /** T82：per-session shell marker 解析器（退出码协议；仅 enableShellMarkers 时使用）。 */
     private val markerParsers = java.util.concurrent.ConcurrentHashMap<Long, com.apex.agent.platform.terminal.protocol.ShellMarkerParser>()
 
+    /** T-OSC7：per-session OSC 7 cwd 解析器（read_screen 语义化；与引擎选择无关）。 */
+    private val osc7Parsers = java.util.concurrent.ConcurrentHashMap<Long, com.apex.agent.platform.terminal.protocol.Osc7CwdParser>()
+
     init {
         // P70-4: wire the REAL sessionId(Long) → nativeSessionId(Int) mapping into the
         // write path. Previously InputManagerImpl guessed `sessionId.toInt()`, which
@@ -528,6 +531,8 @@ class TerminalRuntimeImpl(
             timeoutController.cancelSession(sessionId)
             // T82：回收 marker 解析器（per-session 状态不随 close 泄漏）。
             markerParsers.remove(sessionId)
+            // T-OSC7：同款回收（cwd 解析器 per-session 状态）。
+            osc7Parsers.remove(sessionId)
             // T81：close 后同步删除持久化记录（§39 语义：CLOSED → 不再保留；
             // 原路径依赖 collector 收到 SessionClosed 时 autoSave，与 assembly
             // 移除存在竞态，CLOSED 终态可能从未落盘）。
@@ -559,12 +564,17 @@ class TerminalRuntimeImpl(
             eventBus.subscribe(sessionId, afterCursor = 0L)
                 .takeWhile { ev -> ev !is TerminalEvent.SessionClosed }
                 .collect { ev ->
-                    // T82 — Shell Marker Protocol：marker 解析先于 job 状态处理 ——
-                    // OutputProduced 事件到达时字节已写入 ring（pump 先 append 后
-                    // emit），此处读取 chunk 范围并扫描 OSC 633 帧。同一 collect
-                    // 协程内顺序保证：marker 的 ProcessExited 先于后续 WaitingInput。
-                    if (enableShellMarkers && ev is TerminalEvent.OutputProduced) {
-                        feedShellMarkers(sessionId, ev)
+                    if (ev is TerminalEvent.OutputProduced) {
+                        // T82 — Shell Marker Protocol：marker 解析先于 job 状态处理 ——
+                        // OutputProduced 事件到达时字节已写入 ring（pump 先 append 后
+                        // emit），此处读取 chunk 范围并扫描 OSC 633 帧。同一 collect
+                        // 协程内顺序保证：marker 的 ProcessExited 先于后续 WaitingInput。
+                        if (enableShellMarkers) {
+                            feedShellMarkers(sessionId, ev)
+                        }
+                        // T-OSC7：cwd 侧车与 marker 协议无关（rc 的 cd() 函数也会发
+                        // OSC 7），无条件解析 —— 与 633 同一挂点但独立生命周期。
+                        feedOsc7Cwd(sessionId, ev)
                     }
                     jobManager.onEvent(ev)
                     // Auto-save on significant events (Spec §39)
@@ -576,23 +586,47 @@ class TerminalRuntimeImpl(
     }
 
     /**
+     * T82：从 ring 读取一个 OutputProduced chunk 的字节。诚实降级：chunk 已被
+     * 环形淘汰（256KB 窗口内不可能 —— chunk ≤ 8KB）或读不齐 → null（调用方
+     * 各自降级：marker 丢失退回 prompt 启发式，cwd 保持旧值）。
+     */
+    private fun readOutputChunk(sessionId: Long, ev: TerminalEvent.OutputProduced): ByteArray? {
+        val len = (ev.endCursor - ev.startCursor).toInt()
+        if (len <= 0) return null
+        val ring = sessionManager.assembly(sessionId)?.ringBuffer ?: return null
+        val slice = ring.getSince(ev.startCursor, len)
+        if (slice.overrun || slice.bytes.size != len) return null
+        return slice.bytes
+    }
+
+    /**
      * T82：从 ring 读取一个 OutputProduced chunk 的字节并喂给该 session 的
      * marker 解析器。解析出的 marker 交给 JobManager（真实退出码终态推进）。
      */
     private suspend fun feedShellMarkers(sessionId: Long, ev: TerminalEvent.OutputProduced) {
-        val len = (ev.endCursor - ev.startCursor).toInt()
-        if (len <= 0) return
-        val ring = sessionManager.assembly(sessionId)?.ringBuffer ?: return
-        val slice = ring.getSince(ev.startCursor, len)
-        // 诚实降级：chunk 已被环形淘汰（256KB 窗口内不可能 —— chunk ≤ 8KB）或读不齐
-        // → 跳过该 chunk（marker 丢失时退回 prompt 启发式 fallback）。
-        if (slice.overrun || slice.bytes.size != len) return
+        val bytes = readOutputChunk(sessionId, ev) ?: return
         val parser = markerParsers.getOrPut(sessionId) {
             com.apex.agent.platform.terminal.protocol.ShellMarkerParser()
         }
-        for (m in parser.feed(slice.bytes, ev.startCursor)) {
+        for (m in parser.feed(bytes, ev.startCursor)) {
             jobManager.onShellMarker(sessionId, m)
         }
+    }
+
+    /**
+     * T-OSC7：OSC 7 cwd 帧解析（与 feedShellMarkers 同一挂点/同源字节）——
+     * 更新 SemanticStateReducer 的 SessionSnapshot.cwd。多帧取末帧（最新值
+     * 即真相；reducer 同值去噪）。
+     */
+    private suspend fun feedOsc7Cwd(sessionId: Long, ev: TerminalEvent.OutputProduced) {
+        val bytes = readOutputChunk(sessionId, ev) ?: return
+        val parser = osc7Parsers.getOrPut(sessionId) {
+            com.apex.agent.platform.terminal.protocol.Osc7CwdParser()
+        }
+        val updates = parser.feed(bytes, ev.startCursor)
+        if (updates.isEmpty()) return
+        val reducer = sessionManager.assembly(sessionId)?.semanticReducer ?: return
+        reducer.updateCwd(updates.last().path)
     }
 
     /** Persist current session state (Spec §39 auto-save). */

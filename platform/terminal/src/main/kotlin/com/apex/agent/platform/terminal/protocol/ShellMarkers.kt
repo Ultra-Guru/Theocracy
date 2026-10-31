@@ -57,18 +57,22 @@ object ShellMarkers {
      * Wrap a command for a foreground job. Returns the command unchanged when
      * wrapping is not safe (blank command → nothing to instrument).
      *
-     * printf 只传一个参数（$?）：POSIX printf 会对剩余参数**复用格式串** ——
-     * 若同时传 `<jobId> $?`，真机会连发两个 marker（先 e=<jobId> 后 e=<退出码>），
-     * 而首个帧会把 job 以错误退出码提前推到 EXITED，真实退出码反被丢弃
-     * （JobManager.onShellMarker 对非 RUNNING job 直接返回）。j=<jobId> 以字面量
-     * 嵌入格式串，无需作为 printf 参数。
+     * printf 的转换参数只有两个（`$?` 与 `"$PWD"`）：POSIX printf 会对剩余参数
+     * **复用格式串** —— 若同时传 `<jobId> $?`，真机会连发两个 marker（先
+     * e=<jobId> 后 e=<退出码>），而首个帧会把 job 以错误退出码提前推到
+     * EXITED，真实退出码反被丢弃（JobManager.onShellMarker 对非 RUNNING job
+     * 直接返回）。j=<jobId> 以字面量嵌入格式串，无需作为 printf 参数。
+     *
+     * 同一 printf 追加 OSC 7 帧（`file://` + `$PWD`）：Agent 命令结束后上报
+     * cwd —— MCP 共享会话不带 rc（无 cd() 函数），read_screen 的 cwd 语义靠
+     * 这条通道兜底（T-OSC7；人类会话另有 rc 的 cd() 通道，见 GuestShellProfile）。
      */
     fun wrapCommand(jobId: Long, command: String): String {
         val trimmed = command.trim()
         if (trimmed.isEmpty()) return command
         // `;` (not `&&`): the marker must be emitted regardless of the command's own
         // exit status — a failing command is exactly the case we most need to report.
-        return "$command; printf '\\033]633;APEX;j=$jobId;e=%d\\007' \$?"
+        return "$command; printf '\\033]633;APEX;j=$jobId;e=%d\\007\\033]7;file://%s\\007' \\$? \"\$PWD\""
     }
 }
 

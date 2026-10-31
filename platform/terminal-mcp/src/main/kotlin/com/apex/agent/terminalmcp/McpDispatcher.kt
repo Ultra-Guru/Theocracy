@@ -139,8 +139,11 @@ class McpDispatcher(
             "Theocracy Terminal MCP server: executes commands in a persistent Android " +
                 "local shell (mksh PTY) owned by a foreground service. " +
                 "Tools: run (blocking execute with waitpid-confirmed exit codes), " +
+                "read_screen (semantic screen: live rows, cursor, alternate-screen, cwd, " +
+                "scrollback), write (interactive input: passwords, [Y/n] prompts), " +
                 "list_sessions, send_signal (foreground process group), resize. " +
                 "Omit session_id to reuse the default shared session (cwd/env/aliases persist). " +
+                "After a timed-out run, use read_screen to see what the command is waiting for. " +
                 "All operations are audit-logged; risky commands may require human confirmation."
     }
 }

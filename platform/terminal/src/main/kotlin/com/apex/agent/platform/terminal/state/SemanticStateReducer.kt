@@ -194,6 +194,20 @@ class SemanticStateReducer(
         _state.value = _state.value.copy(input = _state.value.input.copy(control = ic))
     }
 
+    /**
+     * T-OSC7：OSC 7 侧车上报的 cwd（rc 的 cd() 函数 / ShellMarkers 包装行的
+     * 双标记帧）—— 更新 SessionSnapshot.cwd。与 VT 引擎的 guestCwd（JVM 引擎
+     * 已解析、native 引擎 null）互补：reducer 侧的值与引擎选择无关，UI 会话
+     * tab 的 cwd 展示、observe(SEMANTIC) 与 read_screen 的 cwd 语义同源。
+     * 同值不重发（StateFlow 去噪，cd 频繁时无额外分配）。
+     */
+    suspend fun updateCwd(cwd: String) = mutex.withLock {
+        val s = _state.value
+        if (s.session.cwd != cwd) {
+            _state.value = s.copy(session = s.session.copy(cwd = cwd))
+        }
+    }
+
     /** Snapshot for observe(SEMANTIC). */
     fun snapshot(): TerminalSemanticState = _state.value
 

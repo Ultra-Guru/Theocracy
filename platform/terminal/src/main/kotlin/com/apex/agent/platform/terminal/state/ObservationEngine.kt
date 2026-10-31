@@ -211,11 +211,18 @@ class ObservationEngine(
                     (virtualTerminal as? RealVirtualTerminal)
                         ?.scrollbackLines(scrollbackLines)
                 } else null
+                // T-OSC7：native 引擎不解析 OSC 7（guestCwd=null）—— 回填
+                // reducer 侧车值（rc cd() 函数 / 命令包装行双标记的解析结果）。
+                // JVM 引擎已填值时保持引擎值（CI 下两侧同值）。
+                val rawScreen = virtualTerminal.snapshot()
+                val screen = if (rawScreen.guestCwd == null) {
+                    rawScreen.copy(guestCwd = semanticReducer.snapshot().session.cwd)
+                } else rawScreen
                 TerminalRuntime.ObserveResult(
                     mode = mode,
                     sessionId = sessionId,
                     cursor = currentCursor,
-                    screen = virtualTerminal.snapshot(),
+                    screen = screen,
                     scrollbackTail = tail
                 )
             }

@@ -219,13 +219,122 @@ class TerminalRuntimeToolsTest {
         assertTrue(outcome.isError)
     }
 
+    // ─── read_screen ───
+
+    @Test
+    fun `read screen maps semantic fields`() = runTest {
+        val fake = FakeRuntime().apply {
+            withSession(100, cwd = "/fallback/cwd", lastExitCode = 3, foregroundJob = foregroundJob(7, "npm run dev"))
+            nextScreenState = com.apex.agent.platform.terminal.screen.TerminalScreenState(
+                rows = 40, cols = 120, cursorRow = 3, cursorCol = 7,
+                alternateScreen = false, cursorVisible = true, title = "theocracy",
+                renderedText = "line1\nline2", changedRows = null,
+                scrollbackLineCount = 12, guestCwd = "/semantic/cwd",
+            )
+        }
+        val outcome = tools(fake).call(
+            "read_screen",
+            args("session_id" to intArg(100), "include_scrollback" to kotlinx.serialization.json.JsonPrimitive(true)),
+        )
+        assertFalse(outcome.isError)
+        val structured = outcome.structured!!
+        // cwd 优先引擎值（OSC 7 直解），fallback 到 reducer 侧车
+        assertEquals("/semantic/cwd", structured["cwd"]!!.jsonPrimitive.content)
+        assertEquals(3, structured["cursor"]!!.jsonObject["row"]!!.jsonPrimitive.content.toInt())
+        assertEquals(7, structured["cursor"]!!.jsonObject["col"]!!.jsonPrimitive.content.toInt())
+        assertEquals(false, structured["alternate_screen"]!!.jsonPrimitive.content.toBoolean())
+        assertEquals("theocracy", structured["title"]!!.jsonPrimitive.content)
+        val live = structured["live_screen"]!!.jsonArray
+        assertEquals(listOf("line1", "line2"), live.map { it.jsonPrimitive.content })
+        assertEquals(3, structured["last_exit_code"]!!.jsonPrimitive.content.toInt())
+        assertEquals(true, structured["has_foreground_process"]!!.jsonPrimitive.content.toBoolean())
+    }
+
+    @Test
+    fun `read screen falls back to session cwd when engine guest cwd is null`() = runTest {
+        // 设备端 native 引擎不解析 OSC 7（guestCwd=null）—— reducer 侧车值兜底
+        val fake = FakeRuntime().apply {
+            withSession(100, cwd = "/sidecar/cwd")
+            nextScreenState = com.apex.agent.platform.terminal.screen.TerminalScreenState(
+                rows = 24, cols = 80, cursorRow = 0, cursorCol = 0,
+                alternateScreen = false, title = null, renderedText = "$ ", changedRows = null,
+            )
+        }
+        val outcome = tools(fake).call("read_screen", args("session_id" to intArg(100)))
+        assertEquals("/sidecar/cwd", outcome.structured!!["cwd"]!!.jsonPrimitive.content)
+        // 未请求滚回时不携带 scrollback 字段
+        assertFalse(outcome.structured!!.containsKey("scrollback"))
+    }
+
+    @Test
+    fun `read screen include scrollback returns tail lines`() = runTest {
+        val fake = FakeRuntime().apply {
+            withSession(100)
+            nextScreenState = com.apex.agent.platform.terminal.screen.TerminalScreenState(
+                rows = 24, cols = 80, cursorRow = 0, cursorCol = 0,
+                alternateScreen = false, title = null, renderedText = "", changedRows = null,
+                scrollbackLineCount = 120,
+            )
+            nextScrollbackTail = listOf("old1", "old2")
+        }
+        val outcome = tools(fake).call(
+            "read_screen",
+            args("session_id" to intArg(100), "include_scrollback" to kotlinx.serialization.json.JsonPrimitive(true)),
+        )
+        val structured = outcome.structured!!
+        assertEquals(listOf("old1", "old2"), structured["scrollback"]!!.jsonArray.map { it.jsonPrimitive.content })
+        assertEquals(120, structured["scrollback_lines_total"]!!.jsonPrimitive.content.toInt())
+    }
+
+    @Test
+    fun `read screen observe failure maps to tool error`() = runTest {
+        val fake = FakeRuntime().apply {
+            withSession(100)
+            observeError = TerminalOperationException(TerminalError.SessionNotFound)
+        }
+        val outcome = tools(fake).call("read_screen", args("session_id" to intArg(999)))
+        assertTrue(outcome.isError)
+        assertEquals("SessionNotFound", outcome.structured!!["error"]!!.jsonObject["code"]!!.jsonPrimitive.content)
+    }
+
+    // ─── write ───
+
+    @Test
+    fun `write line records input to shared session`() = runTest {
+        val fake = FakeRuntime().apply { withSession(100) }
+        val outcome = tools(fake).call("write", args("text" to textArg("y")))
+        assertFalse(outcome.isError)
+        assertEquals(
+            listOf(Triple(100L, com.apex.agent.platform.terminal.runtime.TerminalRuntime.WriteKind.LINE, "y")),
+            fake.recordedWrites,
+        )
+        assertEquals(true, outcome.structured!!["written"]!!.jsonPrimitive.content.toBoolean())
+    }
+
+    @Test
+    fun `write raw kind is honored`() = runTest {
+        val fake = FakeRuntime().apply { withSession(100) }
+        tools(fake).call("write", args("text" to textArg("\u0003"), "kind" to textArg("raw")))
+        assertEquals(
+            Triple(100L, com.apex.agent.platform.terminal.runtime.TerminalRuntime.WriteKind.RAW, "\u0003"),
+            fake.recordedWrites.single(),
+        )
+    }
+
+    @Test
+    fun `write invalid kind is rejected`() = runTest {
+        val fake = FakeRuntime()
+        val outcome = tools(fake).call("write", args("text" to textArg("x"), "kind" to textArg("key")))
+        assertTrue(outcome.isError)
+    }
+
     // ─── 工具面元数据 ───
 
     @Test
-    fun `tool registry exposes four core tools with schemas`() = runTest {
+    fun `tool registry exposes six tools with schemas`() = runTest {
         val descriptors = tools(FakeRuntime()).listTools()
         assertEquals(
-            listOf("run", "list_sessions", "send_signal", "resize"),
+            listOf("run", "list_sessions", "send_signal", "resize", "read_screen", "write"),
             descriptors.map { it.name },
         )
         descriptors.forEach {
@@ -241,6 +350,7 @@ class TerminalRuntimeToolsTest {
     fun `find resolves known tools only`() = runTest {
         val provider = tools(FakeRuntime())
         assertNotNull(provider.find("run"))
-        assertNull(provider.find("read_screen"))
+        assertNotNull(provider.find("read_screen"))
+        assertNull(provider.find("gate_status"))
     }
 }
