@@ -97,3 +97,32 @@ jobs:
           FILES=$(find core/plugin-market/src -name "*.kt")
           # shellcheck disable=SC2086
           python3 scripts/kotlin_balance.py $FILES
+
+  # ── 5/10 · Skill Loader 渐进式披露（三阶段可见性 / 防御式跳过 / 资产守卫）──
+  skill-loader-progressive:
+    name: "Plugin 5/10 · Skill Loader Progressive"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-gradle-android
+      - name: Run SkillLoader + Frontmatter tests
+        run: |
+          ./gradlew :core:plugin-market:test \
+            --tests "com.apex.agent.plugin.market.skill.SkillFrontmatterTest" \
+            --tests "com.apex.agent.plugin.market.skill.SkillLoaderProgressiveTest" \
+            --no-daemon -Pkotlin.incremental=false
+
+  # ── 6/10 · Skill 完整性（skills-lock 注入 / 篡改拒绝 / 大小写容忍）──
+  skill-integrity:
+    name: "Plugin 6/10 · Skill Integrity"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-gradle-android
+      - name: Run SkillIntegrity tests
+        run: |
+          ./gradlew :core:plugin-market:test \
+            --tests "com.apex.agent.plugin.market.skill.SkillIntegrityTest" \
+            --no-daemon -Pkotlin.incremental=false
