@@ -331,10 +331,10 @@ class TerminalRuntimeToolsTest {
     // ─── 工具面元数据 ───
 
     @Test
-    fun `tool registry exposes six tools with schemas`() = runTest {
+    fun `tool registry exposes seven tools with schemas`() = runTest {
         val descriptors = tools(FakeRuntime()).listTools()
         assertEquals(
-            listOf("run", "list_sessions", "send_signal", "resize", "read_screen", "write"),
+            listOf("run", "list_sessions", "send_signal", "resize", "read_screen", "write", "gate_status"),
             descriptors.map { it.name },
         )
         descriptors.forEach {
@@ -351,6 +351,73 @@ class TerminalRuntimeToolsTest {
         val provider = tools(FakeRuntime())
         assertNotNull(provider.find("run"))
         assertNotNull(provider.find("read_screen"))
-        assertNull(provider.find("gate_status"))
+        assertNull(provider.find("process_spawn"))
+    }
+
+    // ─── 安全门控（T-GATE）───
+
+    @Test
+    fun `run dangerous command returns confirmation_required and does not execute`() = runTest {
+        val fake = FakeRuntime().apply { withSession(100) }
+        val gate = com.apex.agent.terminalmcp.security.SecurityGate()
+        val provider = TerminalRuntimeTools(fake, gate)
+
+        val outcome = provider.call("run", args("command" to textArg("rm -rf /sdcard/tmpdir")))
+        assertTrue(outcome.isError)
+        assertEquals("confirmation_required", outcome.structured!!["status"]!!.jsonPrimitive.content)
+        assertNotNull(outcome.structured!!["confirm_id"])
+        assertEquals("DANGEROUS", outcome.structured!!["risk"]!!.jsonPrimitive.content)
+        // 命令未进入 PTY（写入前拦截的铁律）
+        assertTrue("gated command must NOT reach the runtime", fake.recordedRuns.isEmpty())
+    }
+
+    @Test
+    fun `approved dangerous command executes on retry`() = runTest {
+        val fake = FakeRuntime().apply { withSession(100) }
+        val gate = com.apex.agent.terminalmcp.security.SecurityGate()
+        val provider = TerminalRuntimeTools(fake, gate)
+
+        val first = provider.call("run", args("command" to textArg("pm clear com.some.app")))
+        assertTrue(first.isError)
+        val confirmId = first.structured!!["confirm_id"]!!.jsonPrimitive.content
+
+        // 人侧批准 → 同命令重试 → 执行
+        gate.resolve(confirmId, approved = true)
+        val second = provider.call("run", args("command" to textArg("pm clear com.some.app")))
+        assertFalse(second.isError)
+        assertEquals(1, fake.recordedRuns.size)
+    }
+
+    @Test
+    fun `run critical command is blocked`() = runTest {
+        val fake = FakeRuntime()
+        val provider = TerminalRuntimeTools(fake, com.apex.agent.terminalmcp.security.SecurityGate())
+        val outcome = provider.call("run", args("command" to textArg("rm -rf /")))
+        assertTrue(outcome.isError)
+        assertEquals("blocked", outcome.structured!!["status"]!!.jsonPrimitive.content)
+        assertEquals("CRITICAL", outcome.structured!!["risk"]!!.jsonPrimitive.content)
+        assertTrue(fake.recordedRuns.isEmpty())
+    }
+
+    @Test
+    fun `gate status lists pending confirmations`() = runTest {
+        val fake = FakeRuntime()
+        val gate = com.apex.agent.terminalmcp.security.SecurityGate()
+        val provider = TerminalRuntimeTools(fake, gate)
+        provider.call("run", args("command" to textArg("kill 1234")))
+
+        val outcome = provider.call("gate_status", args())
+        assertFalse(outcome.isError)
+        assertEquals(1, outcome.structured!!["pending_count"]!!.jsonPrimitive.content.toInt())
+        assertEquals("kill 1234", outcome.structured!!["pending"]!!.jsonArray[0].jsonObject["command"]!!.jsonPrimitive.content)
+
+        // 单条查询
+        val confirmId = outcome.structured!!["pending"]!!.jsonArray[0].jsonObject["confirm_id"]!!.jsonPrimitive.content
+        val single = provider.call("gate_status", args("confirm_id" to textArg(confirmId)))
+        assertEquals("pending", single.structured!!["status"]!!.jsonPrimitive.content)
+
+        // 未知 id
+        val unknown = provider.call("gate_status", args("confirm_id" to textArg("nope")))
+        assertEquals("unknown_or_expired", unknown.structured!!["status"]!!.jsonPrimitive.content)
     }
 }

@@ -141,9 +141,13 @@ class McpDispatcher(
                 "Tools: run (blocking execute with waitpid-confirmed exit codes), " +
                 "read_screen (semantic screen: live rows, cursor, alternate-screen, cwd, " +
                 "scrollback), write (interactive input: passwords, [Y/n] prompts), " +
-                "list_sessions, send_signal (foreground process group), resize. " +
+                "list_sessions, send_signal (foreground process group), resize, " +
+                "gate_status (security gate state). " +
                 "Omit session_id to reuse the default shared session (cwd/env/aliases persist). " +
                 "After a timed-out run, use read_screen to see what the command is waiting for. " +
-                "All operations are audit-logged; risky commands may require human confirmation."
+                "Security: risky commands are classified before the PTY write — run may return " +
+                "confirmation_required (dangerous: a human must approve, then retry the same " +
+                "command; poll gate_status) or blocked (critical: never executable). " +
+                "All operations are audit-logged."
     }
 }

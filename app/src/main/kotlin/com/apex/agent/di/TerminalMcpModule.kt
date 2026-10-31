@@ -6,6 +6,7 @@ import com.apex.agent.terminalmcp.McpAuth
 import com.apex.agent.terminalmcp.McpConfigStore
 import com.apex.agent.terminalmcp.McpServerConfig
 import com.apex.agent.terminalmcp.McpServerManager
+import com.apex.agent.terminalmcp.security.SecurityGate
 import com.apex.agent.terminalmcp.tools.TerminalRuntimeTools
 import dagger.Module
 import dagger.Provides
@@ -67,8 +68,10 @@ object TerminalMcpModule {
     fun provideMcpServerManager(
         store: McpConfigStore,
         runtime: TerminalRuntime,
-    ): McpServerManager =
-        // PR 2/10：工具面接入 TerminalRuntime 冻结门面（run / list_sessions /
-        // send_signal / resize —— 经 OSC 633 真实退出码 + WaitEngine 事件驱动）。
-        McpServerManager(store, TerminalRuntimeTools(runtime))
+    ): McpServerManager {
+        // T-GATE（PR 5/10）：写入前门控单例 —— run/process_spawn 共用；人侧
+        // 确认 UI（PR 9/10 控制中心）消费同一实例的 pendingFlow。
+        val gate = SecurityGate()
+        return McpServerManager(store, TerminalRuntimeTools(runtime, gate))
+    }
 }
