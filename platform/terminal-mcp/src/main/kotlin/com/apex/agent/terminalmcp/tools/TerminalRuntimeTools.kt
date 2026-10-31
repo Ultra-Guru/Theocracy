@@ -15,6 +15,7 @@ import com.apex.agent.platform.terminal.state.TerminalSemanticState
 import com.apex.agent.terminalmcp.McpToolCallOutcome
 import com.apex.agent.terminalmcp.McpToolDescriptor
 import com.apex.agent.terminalmcp.McpToolProvider
+import com.apex.agent.terminalmcp.security.SecurityGate
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
@@ -44,11 +45,15 @@ import kotlinx.serialization.json.putJsonObject
  * 短命令（pwd / git status）在同一 shell 里连续执行，保留 cd/环境变量/别名
  * 的连续性；长任务走 PR 7/10 的 process 通道派生独立会话。
  *
- * 安全：本 PR 工具面尚无门控（四级分类器在 PR 4/10、确认门在 PR 5/10 接入
- * 写入链路）—— 当前阶段仅本机持令牌客户端可达。
+ * 安全：T-GATE（PR 5/10）写入前门控 —— run 经 [SecurityGate] 评估
+ * （ReadOnly/Mutating 自动放行、Dangerous 人工确认（一次性批准票）、
+ * Critical 硬拒）；平台层另有 TerminalPolicyImpl 的 CRITICAL 硬拒兜底
+ * （PR 4/10，纵深防御第二道边界）。
  */
 class TerminalRuntimeTools(
     private val runtime: TerminalRuntime,
+    /** T-GATE（PR 5/10）：写入前门控 —— 命令进入 PTY 前评估；Dangerous 人工确认、Critical 硬拒。 */
+    private val securityGate: SecurityGate = SecurityGate(),
 ) : McpToolProvider {
 
     @Volatile
@@ -199,6 +204,21 @@ class TerminalRuntimeTools(
                 putJsonArray("required") { add(JsonPrimitive("text")) }
             },
         ),
+        McpToolDescriptor(
+            name = TOOL_GATE_STATUS,
+            description = "Inspect the security gate: pending confirmations (Dangerous commands " +
+                "awaiting human approval) and their expiry. After a run returns confirmation_required, " +
+                "poll this tool — once the human approves, retry the same command.",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("confirm_id") {
+                        put("type", "string")
+                        put("description", "optional: query one confirmation by id instead of listing all")
+                    }
+                }
+            },
+        ),
     )
 
     override suspend fun find(name: String): McpToolDescriptor? =
@@ -212,6 +232,7 @@ class TerminalRuntimeTools(
             TOOL_RESIZE -> resize(arguments)
             TOOL_READ_SCREEN -> readScreen(arguments)
             TOOL_WRITE -> writeInput(arguments)
+            TOOL_GATE_STATUS -> gateStatus(arguments)
             else -> McpToolCallOutcome(text = "unknown tool: $name", isError = true)
         }
     } catch (t: Throwable) {
@@ -228,6 +249,34 @@ class TerminalRuntimeTools(
         val timeoutMs = arguments.longArg("timeout_ms") ?: DEFAULT_TIMEOUT_MS
         val maxOutputBytes = (arguments.intArg("max_output_bytes") ?: DEFAULT_MAX_OUTPUT_BYTES)
             .coerceIn(MIN_OUTPUT_BYTES, MAX_OUTPUT_BYTES_CAP)
+
+        // T-GATE：写入前门控 —— 命令进入 PTY 前评估（进 PTY 后无法拦截）。
+        val gateDecision = securityGate.evaluate(command, sessionId)
+        when (gateDecision) {
+            is SecurityGate.GateDecision.Blocked -> {
+                val structured = buildJsonObject {
+                    put("ok", false)
+                    put("status", "blocked")
+                    put("risk", gateDecision.assessment.level.name)
+                    put("reason", gateDecision.assessment.reason)
+                }
+                return McpToolCallOutcome(text = structured.toString(), structured = structured, isError = true)
+            }
+            is SecurityGate.GateDecision.RequireConfirmation -> {
+                val structured = buildJsonObject {
+                    put("ok", false)
+                    put("status", "confirmation_required")
+                    put("confirm_id", gateDecision.confirmId)
+                    put("risk", gateDecision.assessment.level.name)
+                    put("reason", gateDecision.assessment.reason)
+                    put("expires_at_ms", gateDecision.expiresAtMs)
+                    put("hint", "human approval pending — retry the same command after approval")
+                }
+                return McpToolCallOutcome(text = structured.toString(), structured = structured, isError = true)
+            }
+            is SecurityGate.GateDecision.Allowed -> // 继续执行；风险级别随结果返回（事件流审计同源）
+                Unit
+        }
 
         val startedAt = System.currentTimeMillis()
         val runResult = runtime.run(sessionId, command, InputOwner.AGENT).getOrElse { return toolError(it) }
@@ -414,6 +463,53 @@ class TerminalRuntimeTools(
         return McpToolCallOutcome(text = "ok", structured = structured)
     }
 
+    // ─── gate_status ───
+
+    /** 门控状态查询：待确认单列表 / 单据详情（Agent 轮询人侧裁决结果）。 */
+    private suspend fun gateStatus(arguments: JsonObject): McpToolCallOutcome {
+        val confirmId = arguments.stringArg("confirm_id")
+        val structured = if (confirmId != null) {
+            val pending = securityGate.findPending(confirmId)
+            buildJsonObject {
+                putNullableLong("found_at", clockNow())
+                if (pending != null) {
+                    put("status", "pending")
+                    put("confirm_id", pending.confirmId)
+                    put("command", pending.command)
+                    put("risk", pending.assessment.level.name)
+                    put("reason", pending.assessment.reason)
+                    putNullableLong("session_id", pending.sessionId)
+                    put("expires_at_ms", pending.expiresAtMs)
+                } else {
+                    put("status", "unknown_or_expired")
+                    put("confirm_id", confirmId)
+                }
+            }
+        } else {
+            buildJsonObject {
+                put("pending_count", securityGate.pendingList().size)
+                put("active_approvals", securityGate.activeApprovalCount())
+                put(
+                    "pending",
+                    JsonArray(securityGate.pendingList().map { p ->
+                        buildJsonObject {
+                            put("confirm_id", p.confirmId)
+                            put("command", p.command)
+                            put("risk", p.assessment.level.name)
+                            put("reason", p.assessment.reason)
+                            putNullableLong("session_id", p.sessionId)
+                            put("expires_at_ms", p.expiresAtMs)
+                        }
+                    }),
+                )
+            }
+        }
+        return McpToolCallOutcome(text = "ok", structured = structured)
+    }
+
+    /** 事件流时钟源（PR 6/10 接 EventJournal 后与事件时间戳同源）。 */
+    private fun clockNow(): Long = System.currentTimeMillis()
+
     // ─── 共享会话 ───
 
     /**
@@ -468,6 +564,7 @@ class TerminalRuntimeTools(
         const val TOOL_RESIZE = "resize"
         const val TOOL_READ_SCREEN = "read_screen"
         const val TOOL_WRITE = "write"
+        const val TOOL_GATE_STATUS = "gate_status"
 
         /** run 默认等待预算：60s（Agent 客户端工具超时的常见默认值下限）。 */
         const val DEFAULT_TIMEOUT_MS = 60_000L
