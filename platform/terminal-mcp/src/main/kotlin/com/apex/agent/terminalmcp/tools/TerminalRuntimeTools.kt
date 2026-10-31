@@ -15,6 +15,7 @@ import com.apex.agent.platform.terminal.state.TerminalSemanticState
 import com.apex.agent.terminalmcp.McpToolCallOutcome
 import com.apex.agent.terminalmcp.McpToolDescriptor
 import com.apex.agent.terminalmcp.McpToolProvider
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
@@ -115,7 +116,7 @@ class TerminalRuntimeTools(
                         put("description", "signal name")
                     }
                 }
-                putJsonArray("required") { add("signal") }
+                putJsonArray("required") { add(JsonPrimitive("signal")) }
             },
         ),
         McpToolDescriptor(
