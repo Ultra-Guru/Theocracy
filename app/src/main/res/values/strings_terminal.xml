@@ -67,4 +67,6 @@
     <string name="term_remove">Remove</string>
     <string name="term_policy_empty">Empty — everything is allowed</string>
     <string name="term_env_hint">Lists persist across restarts and are shared with agent-side runtime policy.</string>
+    <string name="term_view_mode_vt">Switch to interactive VT view</string>
+    <string name="term_view_mode_console">Switch to console lines view</string>
 </resources>
