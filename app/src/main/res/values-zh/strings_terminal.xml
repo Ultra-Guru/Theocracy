@@ -69,4 +69,25 @@
     <string name="term_env_hint">名单跨重启持久化，并与 Agent 侧运行时策略共享。</string>
     <string name="term_view_mode_vt">切换到交互 VT 视图</string>
     <string name="term_view_mode_console">切换到控制台行视图</string>
+    <string name="mcp_center_title">MCP 控制中心</string>
+    <string name="mcp_section_server">服务器</string>
+    <string name="mcp_state_running">运行中 · 端口 %1$d</string>
+    <string name="mcp_state_disabled">已停用</string>
+    <string name="mcp_state_failed">失败：%1$s</string>
+    <string name="mcp_state_stopped">已停止</string>
+    <string name="mcp_section_endpoint">端点与令牌</string>
+    <string name="mcp_endpoint_label">端点（Streamable HTTP）</string>
+    <string name="mcp_token_label">Bearer 令牌</string>
+    <string name="mcp_token_show">显示</string>
+    <string name="mcp_token_hide">隐藏</string>
+    <string name="mcp_token_regen">再生成令牌</string>
+    <string name="mcp_port_label">端口</string>
+    <string name="mcp_port_apply">应用</string>
+    <string name="mcp_section_connect">接入 Agent</string>
+    <string name="mcp_connect_usb_hint">本机 Agent 直连 127.0.0.1；桌面 Agent 需先做 USB 端口转发：</string>
+    <string name="mcp_section_pending">待确认（%1$d）</string>
+    <string name="mcp_confirm_approve">准许一次</string>
+    <string name="mcp_confirm_deny">拒绝</string>
+    <string name="mcp_copy">复制</string>
+    <string name="mcp_close">关闭</string>
 </resources>

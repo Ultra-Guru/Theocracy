@@ -14,6 +14,10 @@ import com.apex.agent.platform.terminal.io.InputOwner
 import com.apex.agent.platform.terminal.io.TerminalKey
 import com.apex.agent.platform.terminal.profile.GuestShellProfile
 import com.apex.agent.platform.terminal.runtime.TerminalRuntime
+import com.apex.agent.terminalmcp.McpAuth
+import com.apex.agent.terminalmcp.McpConfigStore
+import com.apex.agent.terminalmcp.McpServerManager
+import com.apex.agent.terminalmcp.security.SecurityGate
 import com.apex.agent.ui.language.LanguageManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -54,6 +58,10 @@ import javax.inject.Inject
 class TerminalViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val terminalRuntime: TerminalRuntime,
+    // T-CTRL（PR 9/10）：MCP 控制中心 —— 状态/端点/令牌/端口/开关 + 门控待确认
+    private val mcpServerManager: McpServerManager,
+    private val mcpConfigStore: McpConfigStore,
+    private val securityGate: SecurityGate,
     // i18n：通知/EXIT 行文案（非 Compose 场景，LanguageManager 取词）
     private val lang: LanguageManager,
     // 两个 store 由 TerminalModule 提供 Hilt 单例：设置中心「终端」分类与
@@ -333,6 +341,39 @@ class TerminalViewModel @Inject constructor(
         viewModelScope.launch {
             terminalRuntime.resize(sessionId, rows, cols)
         }
+    }
+
+    // ═══ MCP 控制中心（terminal 十连 PR 9/10）═══
+
+    /** 服务器状态（Running 端点 / Disabled / Failed）。 */
+    val mcpState = mcpServerManager.state
+
+    /** 门控待确认单（Dangerous 命令的人工确认队列）。 */
+    val mcpPending = securityGate.pendingFlow
+
+    /** 当前配置快照（端点/令牌/端口的展示源）。 */
+    val mcpConfig: com.apex.agent.terminalmcp.McpServerConfig get() = mcpConfigStore.load()
+
+    /** 开关切换（保存 + 重启监听）。 */
+    fun setMcpEnabled(enabled: Boolean) {
+        mcpConfigStore.save(mcpConfigStore.load().copy(enabled = enabled))
+        mcpServerManager.restart()
+    }
+
+    /** 端口变更（保存 + 重启监听）。 */
+    fun setMcpPort(port: Int) {
+        mcpConfigStore.save(mcpConfigStore.load().copy(port = port))
+        mcpServerManager.restart()
+    }
+
+    /** 令牌再生成（服务器每请求实时读 store —— 无需重启）。 */
+    fun regenerateMcpToken() {
+        mcpConfigStore.save(mcpConfigStore.load().copy(authToken = McpAuth.generateToken()))
+    }
+
+    /** 人侧裁决：准许一次（120s 内同命令重试放行并消费）。 */
+    fun resolveConfirmation(confirmId: String, approved: Boolean) {
+        viewModelScope.launch { securityGate.resolve(confirmId, approved) }
     }
 
     /** ↑/↓ 历史召回（entries 最新在前；↑=更旧，↓=更新，越过末位回实时位）。 */
