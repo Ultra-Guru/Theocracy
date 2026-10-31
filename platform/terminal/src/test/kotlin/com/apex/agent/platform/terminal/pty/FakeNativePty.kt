@@ -349,8 +349,9 @@ class FakeNativePty : NativePty {
     /** T82：runtime 包装的 marker 后缀（与 ShellMarkers.wrapCommand 产出的文本一致；
      *  $? 与 "$PWD" 两参数恰与两个转换符对应 —— 多余参数会触发 printf 格式串
      *  复用双帧，见 ShellMarkers KDoc；OSC 7 双标记帧同期追加（T-OSC7）。
-     *  模式尾部不含收尾引号（原始字符串四连引号会提前终止；find 只需定位起点）。 */
-    private val MARKER_WRAP = Regex("""; printf '\\033\]633;APEX;j=(\d+);e=%d\\007\\033\]7;file://%s\\007' \$\? "\$PWD""")
+     *  模式止于 \$?（定位包装起点足够；原始字符串内 $ 后接标识符会触发模板
+     *  解析，故不匹配尾部 "$PWD"）。 */
+    private val MARKER_WRAP = Regex("""; printf '\\033\]633;APEX;j=(\d+);e=%d\\007\\033\]7;file://%s\\007' \$\?""")
 
     /** Test helper: inject raw output bytes (simulates a program writing to stdout). */
     fun injectOutput(sessionId: Int, text: String) {

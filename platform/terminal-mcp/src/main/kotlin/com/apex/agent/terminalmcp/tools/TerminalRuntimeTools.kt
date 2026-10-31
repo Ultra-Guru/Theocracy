@@ -192,7 +192,7 @@ class TerminalRuntimeTools(
                     }
                     putJsonObject("kind") {
                         put("type", "string")
-                        put("enum") { add(JsonPrimitive("line")); add(JsonPrimitive("raw")) }
+                        putJsonArray("enum") { add(JsonPrimitive("line")); add(JsonPrimitive("raw")) }
                         put("default", "line")
                     }
                 }
