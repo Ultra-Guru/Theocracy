@@ -1,7 +1,11 @@
 package com.apex.agent.terminalmcp
 
 import fi.iki.elonen.NanoHTTPD
+import fi.iki.elonen.NanoHTTPD.Response.Status
 import kotlinx.coroutines.runBlocking
+
+/** NanoHTTPD 2.3.1 无内建 MIME_JSON 常量（仅 MIME_PLAINTEXT / MIME_HTML）—— 本地补充。 */
+private const val MIME_JSON = "application/json"
 
 /**
  * MCP Streamable HTTP 传输服务器（NanoHTTPD，仅绑定 127.0.0.1）。
