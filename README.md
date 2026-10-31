@@ -48,6 +48,13 @@ Android 本地宿主 Shell（原 Ubuntu/PRoot 栈已随拆分移除，后续重�
 ### 📟 Terminal（原 AndroidShell，更名 + 收束）
 - **本地宿主 Shell**：mksh on toybox，真 PTY（forkpty）执行，零安装即用
 - M³ 控制台视觉 × 多会话 / 环境中心 / 命令历史 / Android 依赖安装
+- **Agent 可调用终端（MCP 服务器）**：内置标准 MCP 服务器（Streamable HTTP + Bearer），
+  12 个工具（run / read_screen / write / send_signal / list_sessions / resize /
+  gate_status / events / process_*）—— Claude Code / Cursor / RikkaHub 零适配接入；
+  真实退出码（OSC 633 + waitpid）、语义化读屏（cwd / 光标 / 滚回）、四级写入前
+  门控（Dangerous 人工确认 / Critical 硬拒）、JSONL 审计流、长任务非阻塞 poll；
+  人机共视（VT 全屏视图与 Agent read_screen 同源）。
+  **[接入指南 → docs/terminal/MCP_SERVER.md](docs/terminal/MCP_SERVER.md)**
 
 ### 🔐 三级权限链
 Root → Shizuku（ADB 级）→ 无障碍服务，能力递降兜底
