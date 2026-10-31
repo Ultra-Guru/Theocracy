@@ -130,11 +130,11 @@ fun McpControlSheet(viewModel: TerminalViewModel, onDismiss: () -> Unit) {
         McpSectionCard(title = stringResource(R.string.mcp_section_connect)) {
             Text(stringResource(R.string.mcp_connect_usb_hint), style = MaterialTheme.typography.bodySmall)
             val adbCmd = "adb reverse tcp:${config.port} tcp:${config.port}"
-            CopyableLine("USB", adbCmd) { clipboard.setText(AnnotatedString(adbCmd)) }
+            CopyableLine("USB", adbCmd, onCopy = { clipboard.setText(AnnotatedString(adbCmd)) })
             val claudeCmd = "claude mcp add --transport http theocracy http://127.0.0.1:${config.port}/mcp --header \"Authorization: Bearer ${config.authToken}\""
-            CopyableLine("Claude Code", claudeCmd) { clipboard.setText(AnnotatedString(claudeCmd)) }
+            CopyableLine("Claude Code", claudeCmd, onCopy = { clipboard.setText(AnnotatedString(claudeCmd)) })
             val rikkaHint = "RikkaHub → MCP → 添加 Streamable HTTP: http://127.0.0.1:${config.port}/mcp (Header: Authorization: Bearer <token>)"
-            CopyableLine("RikkaHub", rikkaHint) { clipboard.setText(AnnotatedString(rikkaHint)) }
+            CopyableLine("RikkaHub", rikkaHint, onCopy = { clipboard.setText(AnnotatedString(rikkaHint)) })
         }
 
         // ── 门控待确认（Dangerous 命令的人工裁决队列）──
@@ -198,7 +198,7 @@ private fun McpSectionCard(title: String, content: @Composable () -> Unit) {
 private fun CopyableLine(
     label: String,
     value: String,
-    onCopy: () -> Unit,
+    onCopy: () -> Unit = {},
     trailing: (@Composable () -> Unit)? = null,
 ) {
     Column {
