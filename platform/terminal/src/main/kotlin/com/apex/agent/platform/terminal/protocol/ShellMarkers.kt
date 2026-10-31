@@ -56,13 +56,19 @@ object ShellMarkers {
     /**
      * Wrap a command for a foreground job. Returns the command unchanged when
      * wrapping is not safe (blank command → nothing to instrument).
+     *
+     * printf 只传一个参数（$?）：POSIX printf 会对剩余参数**复用格式串** ——
+     * 若同时传 `<jobId> $?`，真机会连发两个 marker（先 e=<jobId> 后 e=<退出码>），
+     * 而首个帧会把 job 以错误退出码提前推到 EXITED，真实退出码反被丢弃
+     * （JobManager.onShellMarker 对非 RUNNING job 直接返回）。j=<jobId> 以字面量
+     * 嵌入格式串，无需作为 printf 参数。
      */
     fun wrapCommand(jobId: Long, command: String): String {
         val trimmed = command.trim()
         if (trimmed.isEmpty()) return command
         // `;` (not `&&`): the marker must be emitted regardless of the command's own
         // exit status — a failing command is exactly the case we most need to report.
-        return "$command; printf '\\033]633;APEX;j=$jobId;e=%d\\007' $jobId \$?"
+        return "$command; printf '\\033]633;APEX;j=$jobId;e=%d\\007' \$?"
     }
 }
 

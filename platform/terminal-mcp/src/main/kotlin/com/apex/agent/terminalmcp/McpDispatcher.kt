@@ -138,8 +138,9 @@ class McpDispatcher(
         const val DEFAULT_INSTRUCTIONS =
             "Theocracy Terminal MCP server: executes commands in a persistent Android " +
                 "local shell (mksh PTY) owned by a foreground service. " +
-                "Tools arrive in subsequent releases (run / read_screen / send_signal / " +
-                "list_sessions / resize / process tools). " +
+                "Tools: run (blocking execute with waitpid-confirmed exit codes), " +
+                "list_sessions, send_signal (foreground process group), resize. " +
+                "Omit session_id to reuse the default shared session (cwd/env/aliases persist). " +
                 "All operations are audit-logged; risky commands may require human confirmation."
     }
 }

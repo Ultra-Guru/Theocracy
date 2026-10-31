@@ -27,10 +27,12 @@ kotlin {
 }
 
 dependencies {
-    // PR 1/10（terminal-mcp 传输基座）：本模块自选约束 —— 纯传输 + 协议层，
-    // 不依赖 platform:terminal（PR 2/10 接入 TerminalRuntime 工具面时再引入），
-    // 保证传输基座可独立用 JVM 单测完整验证（HttpURLConnection 直打真实
-    // NanoHTTPD 实例，无 mock 框架 —— 与全仓手写 fake 纪律一致）。
+    // PR 2/10 起接入 TerminalRuntime 冻结门面（run/list_sessions/send_signal/
+    // resize 工具面）。platform:terminal 对 :terminal-emulator 是 implementation
+    // （不传递）—— 门面的 styledScreenFlow 签名引用 TerminalRenderSnapshot，
+    // 本模块需显式声明（与 app 的先例同款）。
+    implementation(project(":platform:terminal"))
+    implementation(project(":terminal-emulator"))
     implementation(libs.coroutines.android)
     implementation(libs.serialization.json)
     // NanoHTTPD 2.3.1（Maven Central 终版，功能冻结但久经考验）：thread-per-

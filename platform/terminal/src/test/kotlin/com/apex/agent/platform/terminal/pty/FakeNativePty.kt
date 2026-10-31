@@ -266,9 +266,10 @@ class FakeNativePty : NativePty {
 
     private fun executeCommand(s: Session, line: String) {
         // T82 — Shell Marker Protocol awareness：runtime（markers 开启）写入的行形如
-        // `cmd; printf '\033]633;APEX;j=<jobId>;e=%d\007' <jobId> $?`。真实 bash 会让
+        // `cmd; printf '\033]633;APEX;j=<jobId>;e=%d\007' $?`。真实 shell 会让
         // printf 在命令结束后输出该 OSC 帧 —— fake 同样模拟（使 JVM 测试能跑通
-        // wrap → write → output → parser → JobManager 全链路）。
+        // wrap → write → output → parser → JobManager 全链路）。只传 $? 单参数：
+        // 多余参数会触发 POSIX printf 格式串复用（双 marker，首帧退出码错）。
         val markerMatch = MARKER_WRAP.find(line)
         val baseLine = if (markerMatch != null) line.substring(0, markerMatch.range.first).trim() else line
         val markerJobId = markerMatch?.groupValues?.get(1)?.toIntOrNull()
@@ -342,8 +343,9 @@ class FakeNativePty : NativePty {
         }, "fake-pty-${s.id}-cmd").apply { isDaemon = true; start() }
     }
 
-    /** T82：runtime 包装的 marker 后缀（与 ShellMarkers.wrapCommand 产出的文本一致）。 */
-    private val MARKER_WRAP = Regex("""; printf '\\033\]633;APEX;j=(\d+);e=%d\\007' \d+ \$\?""")
+    /** T82：runtime 包装的 marker 后缀（与 ShellMarkers.wrapCommand 产出的文本一致；
+     *  只传 $? 单参数 —— printf 多余参数会触发格式串复用双 marker，见 ShellMarkers KDoc）。 */
+    private val MARKER_WRAP = Regex("""; printf '\\033\]633;APEX;j=(\d+);e=%d\\007' \$\?""")
 
     /** Test helper: inject raw output bytes (simulates a program writing to stdout). */
     fun injectOutput(sessionId: Int, text: String) {
