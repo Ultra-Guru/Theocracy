@@ -1,12 +1,12 @@
 package com.apex.agent.di
 
 import android.content.Context
-import com.apex.agent.terminalmcp.InMemoryMcpConfigStore
+import com.apex.agent.platform.terminal.runtime.TerminalRuntime
 import com.apex.agent.terminalmcp.McpAuth
 import com.apex.agent.terminalmcp.McpConfigStore
 import com.apex.agent.terminalmcp.McpServerConfig
 import com.apex.agent.terminalmcp.McpServerManager
-import com.apex.agent.terminalmcp.NoToolProvider
+import com.apex.agent.terminalmcp.tools.TerminalRuntimeTools
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -64,6 +64,11 @@ object TerminalMcpModule {
 
     @Provides
     @Singleton
-    fun provideMcpServerManager(store: McpConfigStore): McpServerManager =
-        McpServerManager(store, NoToolProvider)
+    fun provideMcpServerManager(
+        store: McpConfigStore,
+        runtime: TerminalRuntime,
+    ): McpServerManager =
+        // PR 2/10：工具面接入 TerminalRuntime 冻结门面（run / list_sessions /
+        // send_signal / resize —— 经 OSC 633 真实退出码 + WaitEngine 事件驱动）。
+        McpServerManager(store, TerminalRuntimeTools(runtime))
 }
