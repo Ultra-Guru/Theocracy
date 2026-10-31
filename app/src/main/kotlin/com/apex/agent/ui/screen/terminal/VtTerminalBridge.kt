@@ -7,10 +7,10 @@ import android.content.Intent
 import android.net.Uri
 import com.apex.agent.platform.terminal.io.TerminalKey
 import com.apex.agent.terminalview.TerminalContextMenuItem
-import com.apex.agent.terminalview.TerminalKey as VtKey
 import com.apex.agent.terminalview.TerminalMouseEventType
 import com.apex.agent.terminalview.TerminalViewClient
 import com.apex.agent.terminalemulator.MouseTrackingMode
+import com.apex.agent.terminalemulator.TerminalKey as VtKey
 
 /**
  * T-VIEW — TerminalView ↔ TerminalRuntime 桥（terminal 十连 PR 8/10）。
