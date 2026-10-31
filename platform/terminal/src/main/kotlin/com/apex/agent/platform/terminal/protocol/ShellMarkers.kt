@@ -72,7 +72,7 @@ object ShellMarkers {
         if (trimmed.isEmpty()) return command
         // `;` (not `&&`): the marker must be emitted regardless of the command's own
         // exit status — a failing command is exactly the case we most need to report.
-        return "$command; printf '\\033]633;APEX;j=$jobId;e=%d\\007\\033]7;file://%s\\007' \\$? \"\$PWD\""
+        return "$command; printf '\\033]633;APEX;j=$jobId;e=%d\\007\\033]7;file://%s\\007' \$? \"\$PWD\""
     }
 }
 

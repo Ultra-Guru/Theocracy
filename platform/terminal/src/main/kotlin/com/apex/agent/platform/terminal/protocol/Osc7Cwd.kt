@@ -20,35 +20,44 @@ package com.apex.agent.platform.terminal.protocol
  * ## 帧格式
  * `ESC ] 7 ; file://<host><path> (BEL | ESC \)`（VTE/kitty/ghostty 的通用
  * cwd 协议；VS Code 同源）。host 允许为空（`file:///sdcard`）；path 为绝对
- * 路径，可含百分号编码（防御性解码 —— mksh 的 $PWD 原样输出，但远端 shell
- * 适配器可能编码）。
+ * 路径。路径编码两种形态都支持：mksh 的 `$PWD` 原样 UTF-8 字节；规范形态的
+ * 百分号编码 UTF-8（%XX 序列先解到字节再按 UTF-8 解码，与 VS Code 对齐）。
  */
 object Osc7Cwd {
     const val OSC_CODE = 7
 
     /**
-     * 百分号解码（%41 → A）。mksh 的 $PWD 不编码，此处是防御性兼容 ——
-     * 非法序列（如尾部孤立 %）原样保留，绝不抛异常。
+     * 路径解码（字节级）：ISO_8859_1 视图回到原始字节 → 含 % 时先百分号解到
+     * 字节 → 按 UTF-8 解码。非法序列（孤立的 % / 非法 UTF-8）尽量原样保留
+     *（替换字符兑底），绝不抛异常。
      */
     fun decodePath(raw: String): String {
-        if (!raw.contains('%')) return raw
-        val out = StringBuilder(raw.length)
+        val rawBytes = raw.toByteArray(Charsets.ISO_8859_1)
+        val decoded = if (rawBytes.indexOf(PERCENT) >= 0) percentDecode(rawBytes) else rawBytes
+        return decoded.toString(Charsets.UTF_8)
+    }
+
+    private val PERCENT = '%'.code.toByte()
+
+    /** 百分号解码到字节（非法 %XX 原样保留该字节）。 */
+    private fun percentDecode(bytes: ByteArray): ByteArray {
+        val out = java.io.ByteArrayOutputStream(bytes.size)
         var i = 0
-        while (i < raw.length) {
-            val c = raw[i]
-            if (c == '%' && i + 3 <= raw.length) {
-                val hex = raw.substring(i + 1, i + 3)
+        while (i < bytes.size) {
+            val b = bytes[i]
+            if (b == PERCENT && i + 3 <= bytes.size) {
+                val hex = String(bytes, i + 1, 2, Charsets.US_ASCII)
                 val code = hex.toIntOrNull(16)
                 if (code != null) {
-                    out.append(code.toChar())
+                    out.write(code)
                     i += 3
                     continue
                 }
             }
-            out.append(c)
+            out.write(b.toInt())
             i++
         }
-        return out.toString()
+        return out.toByteArray()
     }
 }
 
