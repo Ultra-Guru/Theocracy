@@ -71,8 +71,8 @@ object ManifestSchema {
         "communication", "media", "system", "education", "entertainment", "other",
     )
 
-    /** id 的反向域名格式（至少两段，小写字母数字起步）。 */
-    val ID_PATTERN = Regex("^[a-z][a-z0-9_]*(\\.[a-z0-9_-]+){1,}$")
+    /** id 的反向域名格式（至少两段；域名标签允许连字符 —— RFC 1035，与 Claude 摄入前缀 claude-marketplace 兼容）。 */
+    val ID_PATTERN = Regex("^[a-z][a-z0-9_-]*(\\.[a-z0-9_-]+){1,}$")
 
     /** name 的 slug 格式（小写字母数字 + 连字符，与 npm/Claude 插件名约定一致）。 */
     val NAME_PATTERN = Regex("^[a-z0-9][a-z0-9-]*$")
