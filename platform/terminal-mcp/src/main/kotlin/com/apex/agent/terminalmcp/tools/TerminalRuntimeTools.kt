@@ -18,6 +18,7 @@ import com.apex.agent.terminalmcp.McpToolProvider
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
@@ -48,7 +49,9 @@ class TerminalRuntimeTools(
 
     @Volatile
     private var sharedSessionId: Long? = null
-    private val sharedSessionLock = Any()
+
+    /** 协程锁：Kotlin 2.x 禁止 synchronized 块内的挂起点（锁会跨挂起持有）。 */
+    private val sharedSessionMutex = kotlinx.coroutines.sync.Mutex()
 
     // ─── 工具面元数据 ───
 
@@ -81,7 +84,7 @@ class TerminalRuntimeTools(
                         put("description", "output capture budget (head+tail folding when exceeded)")
                     }
                 }
-                putJsonArray("required") { add("command") }
+                putJsonArray("required") { add(JsonPrimitive("command")) }
             },
         ),
         McpToolDescriptor(
@@ -107,7 +110,7 @@ class TerminalRuntimeTools(
                     putJsonObject("signal") {
                         put("type", "string")
                         putJsonArray("enum") {
-                            UnixSignal.entries.forEach { add(it.name) }
+                            UnixSignal.entries.forEach { add(JsonPrimitive(it.name)) }
                         }
                         put("description", "signal name")
                     }
@@ -137,7 +140,7 @@ class TerminalRuntimeTools(
                         put("maximum", 500)
                     }
                 }
-                putJsonArray("required") { add("rows"); add("cols") }
+                putJsonArray("required") { add(JsonPrimitive("rows")); add(JsonPrimitive("cols")) }
             },
         ),
     )
@@ -288,7 +291,7 @@ class TerminalRuntimeTools(
      * 或不存在时重建。
      */
     private suspend fun sharedSession(): Long {
-        synchronized(sharedSessionLock) {
+        sharedSessionMutex.withLock {
             val existing = sharedSessionId
             if (existing != null && isSessionUsable(existing)) return existing
             val created = runtime.create(rows = SHARED_SESSION_ROWS, cols = SHARED_SESSION_COLS)
@@ -296,6 +299,8 @@ class TerminalRuntimeTools(
             sharedSessionId = created.sessionId
             return created.sessionId
         }
+        // withLock 的非局部 return 已覆盖全路径，此处不可达
+        error("unreachable")
     }
 
     private suspend fun isSessionUsable(sessionId: Long): Boolean = try {
