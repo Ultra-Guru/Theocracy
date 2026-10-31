@@ -77,6 +77,10 @@ include(":core:llm-adapter")
 include(":core:tool-registry")
 include(":core:logging")
 
+// 插件市场域（.agentpkg 格式 / Skill Loader / MCP 注册表 / 执行管线 /
+// 生态摄入 —— Agent Marketplace & Skill/MCP Plugin System，Spec v1.0）
+include(":core:plugin-market")
+
 // Android平台层
 include(":platform:privilege")
 include(":platform:persistence")

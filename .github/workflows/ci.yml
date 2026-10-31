@@ -104,6 +104,14 @@ jobs:
             $(find core/agent-engine/src/main/kotlin -name "*.kt") \
             -jvm-target 17
 
+      - name: Compile core:plugin-market
+        run: |
+          SER_PLUGIN=$HOME/kotlinc/lib/kotlinx-serialization-compiler-plugin.jar
+          CLASSPATH="$(find /tmp/apex-libs -name '*.jar' | tr '\n' ':')/tmp/build/logging"
+          kotlinc -Xplugin=$SER_PLUGIN -cp "$CLASSPATH" -d /tmp/build/plugin-market \
+            $(find core/plugin-market/src/main/kotlin -name "*.kt") \
+            -jvm-target 17
+
       - name: Check tool ID uniqueness
         run: |
           # 语义 id 的唯一性只对字面字符串声明有判定意义：常量引用解析出常量值后再查重。
@@ -350,6 +358,7 @@ jobs:
             :platform:terminal:compileDebugAndroidTestKotlin \
             :core:agent-engine:test \
             :core:tool-registry:test \
+            :core:plugin-market:test \
             :platform:privilege:testDebugUnitTest \
             :plugins:plugin-workflow:testDebugUnitTest \
             --no-daemon \
