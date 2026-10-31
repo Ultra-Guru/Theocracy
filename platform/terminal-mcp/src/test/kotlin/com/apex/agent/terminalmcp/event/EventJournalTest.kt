@@ -53,18 +53,18 @@ class EventJournalTest {
     }
 
     @Test
-    fun `rotation keeps entries within two files and continues seq`() {
-        // 每条约 80 字节 —— maxBytes=300 时每文件约 3 条，写 10 条触发多轮转
+    fun `rotation keeps newest entries and seq continues`() {
+        // 每条约 110 字节 —— maxBytes=300 时每文件约 2 条，写 10 条触发多轮转；
+        // 双文件上限内只保留最新约 4 条（更旧的被轮转覆盖 —— 预期内，非丢失 bug）。
         val j = journal(maxBytes = 300)
         repeat(10) { j.record("tool_call", "tool" to "run$it", "duration_ms" to it) }
         val entries = j.tail(100)
-        assertEquals("rotation must not lose entries beyond the discarded oldest file", 10, entries.size)
-        // seq 单调
+        assertTrue("retained entries in two-file window: ${entries.size}", entries.size in 2..6)
+        // 最新条目必然保留且 seq 连续单调
         val seqs = entries.map { it["seq"]!!.jsonPrimitive.content.toLong() }
+        assertEquals(10L, seqs.last())
         assertEquals(seqs, seqs.sorted())
-        // 轮转文件存在
-        val dir = j.let { }
-        assertTrue(true)
+        assertEquals("run9", entries.last()["tool"]!!.jsonPrimitive.content)
     }
 
     @Test
@@ -96,15 +96,16 @@ class EventJournalTest {
     @Test
     fun `tool metrics computes p50 p95 calls errors over window`() {
         val m = ToolMetrics()
-        // 1..100 线性延迟：p50=50、p95=95（最近邻秩）
+        // 1..100 线性延迟 + 一个离群值：窗口 = 最近 100 条（2..100 + 1000）
         for (i in 1..100) m.record("run", durationMs = i.toLong(), error = i <= 5)
-        m.record("run", durationMs = 1000, error = true) // 窗口满后仍在（第 101 条被挤出的是 1）
+        m.record("run", durationMs = 1000, error = true)
         val snapshot = m.snapshot()["run"]!!
         assertEquals(101, snapshot.calls)
         assertEquals(6, snapshot.errors)
-        // 窗口 = 最近 100 条（2..100 + 1000）→ 排序后 p50 ≈ 51、p95 ≈ 951
+        // 窗口排序后 [2..100, 1000]：p50 秩 49 → 51；p95 秩 94 → 96（离群值在 99 位，
+        // 95 分位尚未够到 —— 离群值只影响 p96+，这正是 p95 选型的抗噪价值）
         assertTrue("p50=${snapshot.p50Ms}", snapshot.p50Ms in 50..52)
-        assertTrue("p95=${snapshot.p95Ms}", snapshot.p95Ms in 950..1000)
+        assertTrue("p95=${snapshot.p95Ms}", snapshot.p95Ms in 90..100)
     }
 
     @Test
