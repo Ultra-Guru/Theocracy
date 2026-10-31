@@ -35,7 +35,7 @@ object GuestShellProfile {
      *   Build.MODEL 或 /proc/sys/kernel/hostname 读取后注入；rc 内再有兜底）
      */
     fun generate(hostnameHint: String = "android"): String = buildString {
-        appendLine("# ─── Android-Guru-Agent local shell profile (mksh) ───")
+        appendLine("# ─── Theocracy local shell profile (mksh) ───")
         appendLine("# 由 host 侧生成；mksh 经 \$ENV 在交互启动时 source。")
         appendLine("# 纪律：零 bash 专属语法 / 零 PS1 色转义（宽度安全）/ 全命令容错。")
         appendLine()
@@ -116,7 +116,7 @@ object GuestShellProfile {
         appendLine()
         appendLine("# ── help 速查卡 ──")
         appendLine("guru_help() {")
-        appendLine("    echo 'Android-Guru-Agent · Android Shell 速查'")
+        appendLine("    echo 'Theocracy · Android Shell 速查'")
         appendLine("    echo '  cmds            列出全部可用命令'")
         appendLine("    echo '  cmdf <cmd>      查命令位置与类型'")
         appendLine("    echo '  ll / la / l     ls 别名'")

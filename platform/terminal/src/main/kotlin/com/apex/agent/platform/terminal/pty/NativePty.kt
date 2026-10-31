@@ -22,10 +22,10 @@ interface NativePty {
     /**
      * P71 (N1): Create a PTY session whose child executes `execv(argv[0], argv)`.
      *
-     * This is the generalized spawn entry: LOCAL sessions pass
-     * `["/system/bin/sh", "-i"]` (byte-identical to [nativeCreateSession]),
-     * LINUX sessions pass the full PRoot argv
-     * (`[libproot.so, "-r", rootfs, …, "--", "/bin/bash", "-i"]`).
+     * This is the generalized spawn entry: local sessions pass
+     * `["/system/bin/sh", "-i"]` (byte-identical to [nativeCreateSession]).
+     * (Historical: LINUX/PRoot argv spawning — `[libproot.so, "-r", rootfs, …]` —
+     * was removed with the Ubuntu stack split, c07e586.)
      *
      * @param argv non-empty; argv[0] is the executable path. Empty list → -1.
      * @param env explicit env overrides applied ON TOP of the C++-side safe
@@ -89,8 +89,8 @@ interface NativePty {
      * T87：execv 失败的确切原因（null/空 = exec 成功或会话不存在）。
      *
      * [nativeCreateSessionArgv] 返回后立即可查（native 构造期已通过 CLOEXEC
-     * 报告管道定论）。「创建成功但进程即死」的会话（真机 proot ENOENT/
-     * ELIBBAD/EACCES 等）由此获得确切根因，而不是让后续每次 write 的
+     * 报告管道定论）。「创建成功但进程即死」的会话（真机 execv 失败：
+     * ENOENT/ELIBBAD/EACCES 等）由此获得确切根因，而不是让后续每次 write 的
      * WriteFailed（EIO）当「输入失败」误导用户。
      */
     fun nativeGetSpawnError(sessionId: Int): String?

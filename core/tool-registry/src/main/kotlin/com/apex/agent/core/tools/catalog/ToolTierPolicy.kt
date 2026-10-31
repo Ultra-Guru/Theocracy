@@ -60,7 +60,7 @@ object ToolTierPolicy {
         "CodeRead", "CodeEdit", "CodeWrite", "CodeGrep", "CodeGlob", "CodeTodo",
         "CodeTask", "CodeCheck",
 
-        // ── git (v1.0 #153；经 PRoot Ubuntu 沙箱执行，两模式互用) ──
+        // ── git (v1.0 #153；两模式互用) ──
         "CodeGitStatus", "CodeGitDiff", "CodeGitLog", "CodeGitCommit", "CodeGitBranch",
 
         // ── web ──

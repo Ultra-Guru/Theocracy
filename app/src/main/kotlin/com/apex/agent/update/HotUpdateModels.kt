@@ -15,14 +15,13 @@ import kotlinx.serialization.json.Json
  * 必然不同 —— 覆盖安装即报「签名冲突」。对分叉构建/本地构建用户，这条
  * 路永远走不通。
  *
- * 而 App 的高频变更（技能 / MCP 目录）本就是**数据驱动 + 运行时加载**：
- * - 技能：SkillRegistry 安装于 `<filesDir>/skills`，版本化幂等升级，
- *   SkillHotReloader 让新工具/新 Prompt 即时生效；
- * - 目录：MCP 精选目录为纯 JSON，市场页按需读取。
+ * 而热更通道面向的变更类型本就是**数据驱动 + 运行时加载**（历史 payload：
+ * 技能清单与 MCP 精选目录 —— 两域已随分叉剥离，本仓 CI 的 data-only
+ * 判定不再触发，机制保留为通用数据层通道）：
  *
  * 于是热更新通道 = **把数据层从 APK 里解耦出来**：CI 判定「本版变更只落
  * 在热载路径」时额外产出一个热更包（ZIP），App 下载 → SHA-256 对账 →
- * 原子落位 `<filesDir>/hot/active` → 释放技能/目录 → 即时生效。
+ * 原子落位 `<filesDir>/hot/active` → 即时生效。
  * **全程零安装器、零签名校验 —— 签名冲突从根上不存在。**
  *
  * ## 版本口径
@@ -67,8 +66,9 @@ data class HotAsset(
  *
  * 包内布局（与 APK 热载路径同构）：
  * - `hotmanifest.json` —— 本清单；
- * - `skills` 目录下的 .json 文件 —— 技能清单（apex-skill-v1，与 assets/skills 同构）；
- * - `mcp_catalog` 目录下的 .json 文件 —— MCP 精选目录分类文件。
+ * - 数据子目录下的 .json 文件 —— 逐文件 SHA-256 记账的热载内容
+ *   （历史布局：`skills/` 技能清单与 `mcp_catalog/` MCP 目录 —— 两域
+ *   已随分叉剥离，本仓 CI 不再产出该两类条目）。
  *
  * [entries] 逐文件带 SHA-256 —— 外层 ZIP 指纹对账（version.json）之外的第二
  * 道防线：即使 ZIP 被中间人替换为「合法 ZIP + 篡改内容」，逐文件指纹仍会拦截。
