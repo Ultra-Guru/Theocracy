@@ -190,6 +190,9 @@ dependencies {
     implementation(project(":platform:privilege"))
     implementation(project(":platform:persistence"))
     implementation(project(":platform:terminal"))
+    // terminal 十连 PR 1/10：MCP 服务器面（传输基座）—— TerminalMcpModule 的
+    // DI 接线（McpServerManager / McpConfigStore）与 ApexApp 启动路径消费。
+    implementation(project(":platform:terminal-mcp"))
     // P83: Terminal UI 直接消费 TerminalRenderSnapshot/RenderCell（styled grid 渲染）。
     // platform:terminal 对 :terminal-emulator 是 implementation（不传递），app 需显式声明。
     implementation(project(":terminal-emulator"))

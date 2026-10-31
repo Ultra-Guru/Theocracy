@@ -86,6 +86,12 @@ include(":platform:terminal")
 // 浏览器自动化大功能：browser_* 工具协议 + apex-kit-browser 库 DI 接线
 include(":platform:browser-agent")
 
+// Terminal MCP 服务器面 —— Agent 可调用终端的对外协议层（Streamable HTTP /
+// JSON-RPC / Bearer 鉴权）。十连 PR 交付：1/10 传输基座 → 2/10 核心工具面
+// （run/list_sessions/send_signal/resize，接入 TerminalRuntime）→ ... →
+// 10/10 交付文档。纯 Kotlin 可测，与 platform:terminal 经冻结门面解耦。
+include(":platform:terminal-mcp")
+
 // Terminal Runtime 2.0 — vendored VT100/ANSI emulator (ATR Phase 2)
 include(":terminal-emulator")
 
