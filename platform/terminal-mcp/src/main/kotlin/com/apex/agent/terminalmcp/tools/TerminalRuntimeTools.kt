@@ -28,7 +28,7 @@ import kotlinx.serialization.json.putJsonObject
 /**
  * TerminalRuntime → MCP 工具面适配器（terminal 十连 PR 2/10）。
  *
- * 核心工具四件套：
+ * 核心工具六件套（PR 2/10 四件 + PR 3/10 read_screen/write）：
  * - [run]：阻塞式执行（run → WaitEngine 等待退出 → observe RAW 收割输出）。
  *   退出码来自 OSC 633 shell marker（waitpid 确证，绝不用输出静默推断）；
  *   超时不杀进程 —— timed_out=true + partial 输出，Agent 可用 send_signal
@@ -36,6 +36,9 @@ import kotlinx.serialization.json.putJsonObject
  * - [listSessions]：会话簿枚举（snapshot SESSIONS）。
  * - [sendSignal]：前台作业组信号（Ctrl-C 语义：打断当前命令，shell 存活）。
  * - [resize]：PTY 尺寸同步（TIOCSWINSZ + VT resize）。
+ * - [readScreen]：语义化屏幕（live_screen 行数组 + 光标 + alt screen + cwd
+ *   + 最近退出码 + stable scrollback）—— Agent 读屏不再拿原始 ANSI 字节。
+ * - [writeInput]：交互输入（run 超时后读屏 → 看到 Password:/Continue? → 写入）。
  *
  * 共享会话：session_id 缺省时复用（或按需创建）默认共享会话 —— Agent 的
  * 短命令（pwd / git status）在同一 shell 里连续执行，保留 cd/环境变量/别名
@@ -144,6 +147,58 @@ class TerminalRuntimeTools(
                 putJsonArray("required") { add(JsonPrimitive("rows")); add(JsonPrimitive("cols")) }
             },
         ),
+        McpToolDescriptor(
+            name = TOOL_READ_SCREEN,
+            description = "Read the terminal's semantic screen state (not raw ANSI bytes): live screen " +
+                "rows, cursor position, alternate-screen flag, cwd (OSC 7), last exit code, " +
+                "and optionally the stable scrollback tail. Use after a timed-out run to see " +
+                "what the command is waiting for (prompts, passwords, progress).",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("session_id") {
+                        put("type", "integer")
+                        put("description", "target session (omit for the default shared session)")
+                    }
+                    putJsonObject("include_scrollback") {
+                        put("type", "boolean")
+                        put("default", false)
+                        put("description", "include the stable scrollback tail (lines already scrolled off)")
+                    }
+                    putJsonObject("scrollback_lines") {
+                        put("type", "integer")
+                        put("default", 50)
+                        put("minimum", 1)
+                        put("maximum", 500)
+                    }
+                }
+            },
+        ),
+        McpToolDescriptor(
+            name = TOOL_WRITE,
+            description = "Write interactive input to a session (kind=line sends with Enter; kind=raw " +
+                "sends bytes as-is for control sequences). Use after read_screen shows the command " +
+                "waiting for input (Password:, [Y/n], heredoc terminator).",
+            inputSchema = buildJsonObject {
+                put("type", "object")
+                putJsonObject("properties") {
+                    putJsonObject("session_id") {
+                        put("type", "integer")
+                        put("description", "target session (omit for the default shared session)")
+                    }
+                    putJsonObject("text") {
+                        put("type", "string")
+                        put("description", "input text to write")
+                    }
+                    putJsonObject("kind") {
+                        put("type", "string")
+                        putJsonArray("enum") { add(JsonPrimitive("line")); add(JsonPrimitive("raw")) }
+                        put("default", "line")
+                    }
+                }
+                putJsonArray("required") { add(JsonPrimitive("text")) }
+            },
+        ),
     )
 
     override suspend fun find(name: String): McpToolDescriptor? =
@@ -155,6 +210,8 @@ class TerminalRuntimeTools(
             TOOL_LIST_SESSIONS -> listSessions()
             TOOL_SEND_SIGNAL -> sendSignal(arguments)
             TOOL_RESIZE -> resize(arguments)
+            TOOL_READ_SCREEN -> readScreen(arguments)
+            TOOL_WRITE -> writeInput(arguments)
             else -> McpToolCallOutcome(text = "unknown tool: $name", isError = true)
         }
     } catch (t: Throwable) {
@@ -284,6 +341,79 @@ class TerminalRuntimeTools(
         return McpToolCallOutcome(text = "ok", structured = structured)
     }
 
+    // ─── read_screen ───
+
+    /**
+     * 语义化读屏（terminal 十连 PR 3/10）：live_screen + 光标 + alt screen +
+     * cwd（引擎 OSC 7 直解 / reducer 侧车回填）+ 最近退出码 + stable scrollback。
+     */
+    private suspend fun readScreen(arguments: JsonObject): McpToolCallOutcome {
+        val sessionId = arguments.longArg("session_id") ?: sharedSession()
+        val includeScrollback = arguments.boolArg("include_scrollback") ?: false
+        val scrollbackLines = (arguments.intArg("scrollback_lines") ?: DEFAULT_SCROLLBACK_LINES)
+            .coerceIn(1, MAX_SCROLLBACK_LINES)
+        val observed = runtime.observe(
+            sessionId,
+            mode = TerminalRuntime.ObserveMode.SCREEN,
+            scrollbackLines = if (includeScrollback) scrollbackLines else 0,
+        ).getOrElse { return toolError(it) }
+        val screen = observed.screen
+            ?: return toolError(RuntimeException("session has no screen state"))
+        val sessionSemantic = runtime.snapshot(TerminalRuntime.SnapshotMode.SESSIONS)
+            .getOrNull()?.sessions?.firstOrNull { it.session.id == sessionId }
+        val liveLines = (screen.renderedText ?: "").ifEmpty { "" }.split('\n')
+        val structured = buildJsonObject {
+            put("session_id", sessionId)
+            put("cwd", screen.guestCwd ?: sessionSemantic?.session?.cwd)
+            put("cursor", buildJsonObject {
+                put("row", screen.cursorRow)
+                put("col", screen.cursorCol)
+            })
+            put("rows", screen.rows)
+            put("cols", screen.cols)
+            put("alternate_screen", screen.alternateScreen)
+            put("cursor_visible", screen.cursorVisible)
+            put("title", screen.title)
+            put("live_screen", JsonArray(liveLines.map { kotlinx.serialization.json.JsonPrimitive(it) }))
+            put("scrollback_lines_total", screen.scrollbackLineCount ?: 0)
+            if (includeScrollback) {
+                put(
+                    "scrollback",
+                    JsonArray((observed.scrollbackTail ?: emptyList()).map { kotlinx.serialization.json.JsonPrimitive(it) }),
+                )
+            }
+            putNullableInt("last_exit_code", sessionSemantic?.session?.lastExitCode)
+            put("has_foreground_process", sessionSemantic?.foregroundJob != null)
+        }
+        return McpToolCallOutcome(text = "ok", structured = structured)
+    }
+
+    // ─── write ───
+
+    /** 交互输入：run 超时 → read_screen 看到 Password:/[Y/n] → 写入。 */
+    private suspend fun writeInput(arguments: JsonObject): McpToolCallOutcome {
+        val text = arguments.stringArg("text")
+            ?: return invalidParams("write requires string param: text")
+        val kind = when (val k = arguments.stringArg("kind") ?: "line") {
+            "line" -> TerminalRuntime.WriteKind.LINE
+            "raw" -> TerminalRuntime.WriteKind.RAW
+            else -> return invalidParams("write kind must be line or raw (got $k)")
+        }
+        val sessionId = arguments.longArg("session_id") ?: sharedSession()
+        val result = runtime.write(
+            sessionId,
+            owner = InputOwner.AGENT,
+            kind = kind,
+            text = text,
+        ).getOrElse { return toolError(it) }
+        val structured = buildJsonObject {
+            put("session_id", sessionId)
+            put("written", result.written)
+            put("bytes_written", result.bytesWritten)
+        }
+        return McpToolCallOutcome(text = "ok", structured = structured)
+    }
+
     // ─── 共享会话 ───
 
     /**
@@ -336,6 +466,8 @@ class TerminalRuntimeTools(
         const val TOOL_LIST_SESSIONS = "list_sessions"
         const val TOOL_SEND_SIGNAL = "send_signal"
         const val TOOL_RESIZE = "resize"
+        const val TOOL_READ_SCREEN = "read_screen"
+        const val TOOL_WRITE = "write"
 
         /** run 默认等待预算：60s（Agent 客户端工具超时的常见默认值下限）。 */
         const val DEFAULT_TIMEOUT_MS = 60_000L
@@ -352,6 +484,10 @@ class TerminalRuntimeTools(
         /** 共享会话几何：宽幅减少 Agent 读屏折行（read_screen 在 PR 3/10 接入）。 */
         const val SHARED_SESSION_ROWS = 40
         const val SHARED_SESSION_COLS = 120
+
+        /** read_screen 默认滚回尾部行数（请求 include_scrollback 时生效）。 */
+        const val DEFAULT_SCROLLBACK_LINES = 50
+        const val MAX_SCROLLBACK_LINES = 500
     }
 }
 

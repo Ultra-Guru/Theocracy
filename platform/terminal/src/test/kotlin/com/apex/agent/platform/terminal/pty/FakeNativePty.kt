@@ -327,6 +327,9 @@ class FakeNativePty : NativePty {
                 if (markerJobId != null) {
                     val code = if (s.interrupted.get() && exit == 0) 130 else exit
                     synchronized(s.outputBuffer) { s.outputBuffer.append("\u001B]633;APEX;j=$markerJobId;e=$code\u0007") }
+                    // T-OSC7：真实 printf 双帧（633 退出码 + 7 cwd）—— fake 同步模拟；
+                    // cd 已在上文更新 s.cwd（marker 未匹配时保持旧值，与真实 shell 一致）。
+                    synchronized(s.outputBuffer) { s.outputBuffer.append("\u001B]7;file://${s.cwd}\u0007") }
                 }
                 if (!s.exited.get()) {
                     s.outputBuffer.append("\$ ")
@@ -344,8 +347,11 @@ class FakeNativePty : NativePty {
     }
 
     /** T82：runtime 包装的 marker 后缀（与 ShellMarkers.wrapCommand 产出的文本一致；
-     *  只传 $? 单参数 —— printf 多余参数会触发格式串复用双 marker，见 ShellMarkers KDoc）。 */
-    private val MARKER_WRAP = Regex("""; printf '\\033\]633;APEX;j=(\d+);e=%d\\007' \$\?""")
+     *  $? 与 "$PWD" 两参数恰与两个转换符对应 —— 多余参数会触发 printf 格式串
+     *  复用双帧，见 ShellMarkers KDoc；OSC 7 双标记帧同期追加（T-OSC7）。
+     *  模式止于 \$?（定位包装起点足够；原始字符串内 $ 后接标识符会触发模板
+     *  解析，故不匹配尾部 "$PWD"）。 */
+    private val MARKER_WRAP = Regex("""; printf '\\033\]633;APEX;j=(\d+);e=%d\\007\\033\]7;file://%s\\007' \$\?""")
 
     /** Test helper: inject raw output bytes (simulates a program writing to stdout). */
     fun injectOutput(sessionId: Int, text: String) {

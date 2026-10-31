@@ -26,10 +26,10 @@ class ShellMarkerProtocolTest {
 
     @Test fun `wrapCommand produces portable printf with jobId and exit placeholder`() {
         val wrapped = ShellMarkers.wrapCommand(7L, "echo hi")
-        // 语义：`; printf '\033]633;APEX;j=7;e=%d\007' $?` —— 只传 $? 单参数：
-        // POSIX printf 对剩余参数复用格式串，多传 <jobId> 会让真机连发两个
-        // marker（首帧携带错误退出码并提前终结 job）；j=7 以字面量嵌入。
-        assertEquals("echo hi; printf '\\033]633;APEX;j=7;e=%d\\007' \$?", wrapped)
+        // 语义：`; printf '\033]633;APEX;j=7;e=%d\007\033]7;file://%s\007' $? "$PWD"` ——
+        // 两个转换参数（$? 与 "$PWD"）恰与两个转换符对应：多余参数会触发 POSIX
+        // printf 格式串复用（双帧，首帧退出码错）；j=7 以字面量嵌入。
+        assertEquals("echo hi; printf '\\033]633;APEX;j=7;e=%d\\007\\033]7;file://%s\\007' \$? \"\$PWD\"", wrapped)
         // 行内只有可打印 ASCII（readline 不破坏）—— ESC 只以 printf 八进制文本出现
         assertFalse(wrapped.contains('\u001B'))
         assertFalse(wrapped.contains('\u0007'))

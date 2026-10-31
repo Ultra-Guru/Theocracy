@@ -49,10 +49,14 @@ class FakeRuntime : TerminalRuntime {
     )
     var nextRawOutput: String = "hello\n"
     var nextObserveTruncated: Boolean = false
+    var nextScreenState: com.apex.agent.platform.terminal.screen.TerminalScreenState? = null
+    var nextScrollbackTail: List<String>? = null
+    var observeError: Throwable? = null
 
     val recordedRuns = mutableListOf<Pair<Long, String>>()
     val recordedSignals = mutableListOf<Pair<Long, UnixSignal>>()
     val recordedResizes = mutableListOf<Triple<Long, Int, Int>>()
+    val recordedWrites = mutableListOf<Triple<Long, TerminalRuntime.WriteKind, String?>>()
     var nextSignalResult: Result<TerminalRuntime.SignalResult> = Result.success(
         TerminalRuntime.SignalResult(sent = true, signal = UnixSignal.SIGINT, targetJobId = 7L, foregroundDelivered = true),
     )
@@ -101,17 +105,34 @@ class FakeRuntime : TerminalRuntime {
         maxBytes: Int,
         maxEvents: Int,
         scrollbackLines: Int,
-    ): Result<TerminalRuntime.ObserveResult> = Result.success(
-        TerminalRuntime.ObserveResult(
-            mode = TerminalRuntime.ObserveMode.RAW,
-            sessionId = sessionId,
-            cursor = afterCursor + 64,
-            startCursor = afterCursor,
-            endCursor = afterCursor + 64,
-            truncated = nextObserveTruncated,
-            raw = nextRawOutput,
-        ),
-    )
+    ): Result<TerminalRuntime.ObserveResult> {
+        observeError?.let { return Result.failure(it) }
+        return Result.success(
+            when (mode) {
+                TerminalRuntime.ObserveMode.RAW -> TerminalRuntime.ObserveResult(
+                    mode = TerminalRuntime.ObserveMode.RAW,
+                    sessionId = sessionId,
+                    cursor = afterCursor + 64,
+                    startCursor = afterCursor,
+                    endCursor = afterCursor + 64,
+                    truncated = nextObserveTruncated,
+                    raw = nextRawOutput,
+                )
+                TerminalRuntime.ObserveMode.SCREEN -> TerminalRuntime.ObserveResult(
+                    mode = TerminalRuntime.ObserveMode.SCREEN,
+                    sessionId = sessionId,
+                    cursor = afterCursor + 64,
+                    screen = nextScreenState,
+                    scrollbackTail = if (scrollbackLines > 0) nextScrollbackTail else null,
+                )
+                else -> TerminalRuntime.ObserveResult(
+                    mode = mode,
+                    sessionId = sessionId,
+                    cursor = afterCursor + 64,
+                )
+            },
+        )
+    }
 
     override suspend fun wait(
         sessionId: Long,
@@ -126,9 +147,12 @@ class FakeRuntime : TerminalRuntime {
         text: String?,
         key: TerminalKey?,
         bytes: ByteArray?,
-    ): Result<TerminalRuntime.WriteResult> = Result.success(
-        TerminalRuntime.WriteResult(written = true, bytesWritten = 1, cursor = 0, inputOwner = owner),
-    )
+    ): Result<TerminalRuntime.WriteResult> {
+        recordedWrites += Triple(sessionId, kind, text)
+        return Result.success(
+            TerminalRuntime.WriteResult(written = true, bytesWritten = text?.length ?: 1, cursor = 0, inputOwner = owner),
+        )
+    }
 
     override suspend fun signal(
         sessionId: Long,
