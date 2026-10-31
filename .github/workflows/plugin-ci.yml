@@ -168,3 +168,19 @@ jobs:
           ./gradlew :core:plugin-market:test \
             --tests "com.apex.agent.plugin.market.pipeline.*" \
             --no-daemon -Pkotlin.incremental=false
+
+  # ── 10/10 · 生态摄入兼容 + 文档一致性（Claude/OpenCode 摄入 / spec 字段表对齐）──
+  ingest-compat-docs-sync:
+    name: "Plugin 10/10 · Ingest Compat & Docs Sync"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-gradle-android
+      - name: Run ingest compatibility tests
+        run: |
+          ./gradlew :core:plugin-market:test \
+            --tests "com.apex.agent.plugin.market.ingest.*" \
+            --no-daemon -Pkotlin.incremental=false
+      - name: Docs ↔ ManifestSchema field table sync
+        run: python3 scripts/check_plugin_docs_sync.py
