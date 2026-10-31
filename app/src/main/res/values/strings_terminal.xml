@@ -69,4 +69,25 @@
     <string name="term_env_hint">Lists persist across restarts and are shared with agent-side runtime policy.</string>
     <string name="term_view_mode_vt">Switch to interactive VT view</string>
     <string name="term_view_mode_console">Switch to console lines view</string>
+    <string name="mcp_center_title">MCP control center</string>
+    <string name="mcp_section_server">Server</string>
+    <string name="mcp_state_running">Running on port %1$d</string>
+    <string name="mcp_state_disabled">Disabled</string>
+    <string name="mcp_state_failed">Failed: %1$s</string>
+    <string name="mcp_state_stopped">Stopped</string>
+    <string name="mcp_section_endpoint">Endpoint and token</string>
+    <string name="mcp_endpoint_label">Endpoint (Streamable HTTP)</string>
+    <string name="mcp_token_label">Bearer token</string>
+    <string name="mcp_token_show">Show</string>
+    <string name="mcp_token_hide">Hide</string>
+    <string name="mcp_token_regen">Regenerate token</string>
+    <string name="mcp_port_label">Port</string>
+    <string name="mcp_port_apply">Apply</string>
+    <string name="mcp_section_connect">Connect an agent</string>
+    <string name="mcp_connect_usb_hint">On-device agents connect via 127.0.0.1 directly; desktop agents need USB forwarding first:</string>
+    <string name="mcp_section_pending">Pending confirmations (%1$d)</string>
+    <string name="mcp_confirm_approve">Approve once</string>
+    <string name="mcp_confirm_deny">Deny</string>
+    <string name="mcp_copy">Copy</string>
+    <string name="mcp_close">Close</string>
 </resources>

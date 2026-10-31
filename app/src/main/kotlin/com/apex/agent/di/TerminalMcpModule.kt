@@ -65,16 +65,22 @@ object TerminalMcpModule {
         }
     }
 
+    /**
+     * T-GATE（PR 5/10 + PR 9/10）：写入前门控单例 —— run/process_spawn 共用；
+     * 控制中心的待确认列表/准许/拒绝直接消费本实例的 pendingFlow/resolve。
+     */
+    @Provides
+    @Singleton
+    fun provideSecurityGate(): SecurityGate = SecurityGate()
+
     @Provides
     @Singleton
     fun provideMcpServerManager(
         @ApplicationContext context: Context,
         store: McpConfigStore,
         runtime: TerminalRuntime,
+        gate: SecurityGate,
     ): McpServerManager {
-        // T-GATE（PR 5/10）：写入前门控单例 —— run/process_spawn 共用；人侧
-        // 确认 UI（PR 9/10 控制中心）消费同一实例的 pendingFlow。
-        val gate = SecurityGate()
         // T-JOURNAL（PR 6/10）：JSONL 事件流落盘 filesDir/logs（2MB 双文件轮转）
         // + 每工具 p50/p95 度量窗口。
         val journal = EventJournal(java.io.File(context.filesDir, "logs"))

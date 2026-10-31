@@ -31,9 +31,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Article
 import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
@@ -98,6 +98,7 @@ fun TerminalScreen(
         var showEnvCenter by rememberSaveable { mutableStateOf(false) }
         var showHistory by rememberSaveable { mutableStateOf(false) }
         var showSettings by rememberSaveable { mutableStateOf(false) }
+        var showMcpCenter by rememberSaveable { mutableStateOf(false) }
         // T-VIEW（PR 8/10）：控制台行视图 ↔ VT 交互视图（人机共视）切换
         var vtMode by rememberSaveable { mutableStateOf(false) }
 
@@ -142,6 +143,10 @@ fun TerminalScreen(
                         IconButton(onClick = { showHistory = true }) {
                             Icon(Icons.Outlined.History, stringResource(R.string.term_history_title))
                         }
+                        // T-CTRL（PR 9/10）：MCP 控制中心（状态/端点/令牌/接入引导/待确认）
+                        IconButton(onClick = { showMcpCenter = true }) {
+                            Icon(Icons.Outlined.Hub, stringResource(R.string.mcp_center_title))
+                        }
                         IconButton(onClick = { showSettings = true }) {
                             Icon(Icons.Outlined.Settings, stringResource(R.string.term_settings_title))
                         }
@@ -180,6 +185,9 @@ fun TerminalScreen(
 
         if (showEnvCenter) {
             EnvironmentCenterSheet(viewModel) { showEnvCenter = false }
+        }
+        if (showMcpCenter) {
+            McpControlSheet(viewModel) { showMcpCenter = false }
         }
         if (showHistory) {
             TerminalHistorySheet(viewModel) { showHistory = false }
