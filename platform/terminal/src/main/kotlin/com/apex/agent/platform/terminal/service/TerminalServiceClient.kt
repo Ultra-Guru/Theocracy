@@ -24,8 +24,8 @@ import android.os.IBinder
  *
  * ## 边界诚实性
  *
- *  - **绑定 ≠ 前台**：纯 bind 在 UI 前台期间够用；进入长任务（Ubuntu 依赖安装、
- *    编译型 job）时调用 [TerminalService.start] 升前台，UI 退出后会话不中断；
+ *  - **绑定 ≠ 前台**：纯 bind 在 UI 前台期间够用；进入长任务（编译型 job 等）时
+ *    调用 [TerminalService.start] 升前台，UI 退出后会话不中断；
  *  - **回调即 binder oneway**：慢消费只拖慢自己（binder 异步缓冲天然背压），
  *    不影响 PTY 泵；
  *  - **多进程预留**：本客户端对进程位置零假设 —— 未来 TerminalService 搬进

@@ -8,7 +8,9 @@ import kotlinx.coroutines.flow.Flow
  * This is the ONLY API Agent sees. Everything else (PTY, Process, TerminalCore,
  * ObservationEngine, SessionManager, JobManager, RecoveryCoordinator) is internal.
  *
- * Backend (Android/Termux/Ubuntu) implements ExecutionBackend — Agent never knows which.
+ * Backend (currently the single LocalShellBackend — Android local shell) implements
+ * ExecutionBackend — Agent never knows which. (Historical: Termux/Ubuntu backends
+ * were removed with the stack split — c07e586.)
  *
  * Freeze rule: after P60, can ADD optional fields/methods; MUST NOT change existing
  * semantics. Agent code written against P60 must work unchanged in P61+.
@@ -251,7 +253,7 @@ data class TerminalCapabilities(
 interface ExecutionBackend {
     val backendType: String
     fun capabilities(): TerminalCapabilities
-    // Implementation by Android/Termux/Ubuntu backends — NOT in Public API
+    // Implementation by the local shell backend — NOT in Public API
 }
 
 // ─── §28: Subscription (Disposable pattern) ───

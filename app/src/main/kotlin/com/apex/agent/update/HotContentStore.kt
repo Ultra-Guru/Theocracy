@@ -15,8 +15,8 @@ import java.io.File
  * ```
  * filesDir/hot/
  *   active/                 ← 当前生效的 overlay（原子换入）
- *     skills 目录下的 .json  ←   技能清单（apex-skill-v1）
- *     mcp_catalog 目录下的 .json ← MCP 精选目录分类文件
+ *     数据子目录下的 .json    ←  热载内容（历史 section：skills /
+ *                              mcp_catalog —— 两域已随分叉剥离）
  *   staging-<nanoTime>/     ← 解压暂存（应用成功即换名，失败即整体删除）
  *   active-old/             ← 换名过渡位（换入成功后立即清理）
  * ```
@@ -145,6 +145,9 @@ class HotContentStore(
     /**
      * 生效中的技能 id 集 —— SkillModule 的 pruneStaleBundled 白名单合并项
      * （防「热更装上的技能被下次启动的 assets 白名单反向清理」）。
+     *
+     * （拆分注记：SkillModule 已随 skill 域剥离 —— 本方法当前零调用方，
+     * 待热更通道存续评估一并处理。）
      */
     fun activeSkillIds(): Set<String> {
         ensureRetired()
@@ -159,6 +162,9 @@ class HotContentStore(
      * 生效中的 MCP 目录分类文件 —— 市场页目录层的**全量替换集**
      * （热更包携带目标版完整目录快照；存在 overlay 时 assets 目录整体让位，
      * 支持上游删除分类文件的场景）。
+     *
+     * （拆分注记：市场页与 MCP 目录域已剥离 —— 本方法当前零调用方，
+     * 待热更通道存续评估一并处理。）
      */
     fun activeCatalogFiles(): List<File> {
         ensureRetired()

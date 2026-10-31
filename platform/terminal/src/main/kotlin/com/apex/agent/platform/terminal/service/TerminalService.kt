@@ -24,7 +24,7 @@ import com.apex.agent.platform.terminal.R
  *
  *  - **startService（ACTION_START）**：进入前台（specialUse 类型，Android 14+
  *    兼容 —— 与 app 的 ApexCoreService 同款模式）。用户离开 UI / 关屏后，
- *    PTY 会话与 Ubuntu 依赖安装任务继续运行；
+ *    PTY 会话在后台继续运行；
  *  - **bindService**：UI / 未来的 ：terminal 子进程消费者经 [ITerminalService]
  *    AIDL 契约访问（输出推送 + 输入写入）。绑定本身不拉起前台 —— UI 前台期间
  *    纯 bind 即可，进入长任务时再 startService 升前台。
@@ -201,7 +201,7 @@ class TerminalService : Service() {
         private const val CHANNEL_ID = "terminal_runtime"
         private const val NOTIFICATION_ID = 0x54C1 // "TERM1" —— 与 ApexCoreService 通知位错开
 
-        /** 进入前台（保持 PTY 会话与 Ubuntu 任务在 UI 退出后继续）。
+        /** 进入前台（保持 PTY 会话在 UI 退出后继续）。
          *  停止走系统语义 context.stopService()（无自定义 shutdown action ——
          *  startForegroundService 启动后 5s 内未 startForeground 即崩，自定义
          *  action 反而制造该崩溃路径）。 */

@@ -85,7 +85,7 @@ data class ToolResultMeta(
     val exitCode: Int? = null,
     /** 关联的终端会话标注（TerminalRun/TerminalCreate 的 session 标识）。 */
     val sessionId: String? = null,
-    /** 执行通道（proot-ubuntu / root-su / shizuku / local-sh）。 */
+    /** 执行通道（local-sh / root-su / shizuku）。 */
     val channel: String? = null,
     /** 实际执行目录（guest 语义路径，如 /workspace/proj）。 */
     val cwd: String? = null,
